@@ -1,0 +1,35 @@
+
+## From my code of the StructGen, give our own graph to nauty JNI for Linux 
+javac StructGenJNI.java
+javah -jni org.structgen.StructGenJNI //from root of package
+//in VirtualBOx
+gcc -fPIC -o libnautygetcan.so -shared -I/usr/lib/jvm/java-6-openjdk/include -I/usr/lib/jvm/java-6-openjdk/include/linux nautygetcan.c nauty.c nautil.c naututil.c naugraph.c rng.c 
+// in Ubuntu 64bits
+gcc -fPIC -o libnautygetcan.so -shared -I/usr/lib/jvm/java-6-sun/include -I/usr/lib/jvm/java-6-sun/include/linux nautygetcan.c nauty.c nautil.c naututil.c naugraph.c rng.c 
+//32 bits Linux Machine in Evry
+gcc -o libnautygetcan.so -shared -I/home/jpeyron/jdk1.6.0_22/include -I/home/jpeyron/jdk1.6.0_22/include/linux nautygetcan.c nauty.c nautil.c naututil.c naugraph.c rng.c 
+
+
+// you have to place libnautygetca.so and org_structgen_StructGenJNI.h in /mnt/PhD/eclipse/workspace/StructGen/bin/org/structgen
+//java -Djava.library.path=/mnt/PhD/eclipse/workspace/StructGen/bin/org/structgen/ StructGen
+//java -Djava.library.path=/mnt/PhD/eclipse/workspace/StructGen/bin/org/structgen/ org.structgen.StructGen
+java -Djava.library.path=/mnt/PhD/eclipse/workspace/StructGen/bin/org/structgen/ -jar StructGen.jar graph 4 out_julio.txt
+java -jar StructGen.jar -t mol -mf C6H6 -o out_molC6H6.sdf
+
+
+## Nautyex5 JNI for Linux GOOD ONE
+javac JavaNautyex5.java
+javah -jni JavaNautyex5 
+gcc -o libnautyex5lib.so -shared -I/usr/lib/jvm/java-6-sun/include -I/usr/lib/jvm/java-6-sun/include/linux nautyex5lib.c nauty.c nautil.c naugraph.c 
+java -Djava.library.path=/home/julio/workspace/nautyJNI JavaNautyex5
+
+gcc -fPIC -I "C:Program Files\Java\jdk1.6.0_16\include" -I "C:\Program Files\Java\jdk1.6.0_16\include\win32" -LD libNativeLib.dll  NativeLib.c nautyex2.c nauty.c nautil.c naugraph.c 
+
+gcc -I"C:Program Files\Java\jdk1.6.0_16\include" -I"C:\Program Files\Java\jdk1.6.0_16\include\win32" -shared -o libNativeLib.dll  NativeLib.c nautyex2.c nauty.c nautil.c naugraph.c 
+
+gcc -mno-cygwin -I$jdk/include -I$jdk/include/win32 -Wl,--add-stdcall-alias -shared -o HelloWorld.dll HelloWorld.c
+
+
+
+
+

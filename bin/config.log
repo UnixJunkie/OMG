@@ -1,0 +1,81 @@
+This file contains any messages produced by compilers while
+running configure, to aid debugging if configure makes a mistake.
+
+configure:556: checking host system type
+configure:581: checking for gcc
+configure:694: checking whether the C compiler (gcc  ) works
+configure:710: gcc -o conftest    conftest.c  1>&5
+configure:736: checking whether the C compiler (gcc  ) is a cross-compiler
+configure:741: checking whether we are using GNU C
+configure:750: gcc -E conftest.c
+configure:769: checking whether gcc accepts -g
+configure:805: checking if gcc supports -O4 flags
+configure:816: gcc -o conftest -O4   conftest.c  1>&5
+configure: In function 'main':
+configure:813: warning: incompatible implicit declaration of built-in function 'exit'
+configure:907: checking if gcc supports -march=i686 flags
+configure:918: gcc -o conftest -march=i686   conftest.c  1>&5
+configure: In function 'main':
+configure:915: warning: incompatible implicit declaration of built-in function 'exit'
+configure:1168: checking for sys/wait.h that is POSIX.1 compatible
+configure:1189: gcc -c  -O4 -march=i686  conftest.c 1>&5
+configure:1210: checking how to run the C preprocessor
+configure:1231: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1293: checking for stddef.h
+configure:1303: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1293: checking for unistd.h
+configure:1303: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1293: checking for sys/types.h
+configure:1303: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1293: checking for stdlib.h
+configure:1303: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1293: checking for string.h
+configure:1303: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1293: checking for errno.h
+configure:1303: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1379: checking for ANSI C header files
+configure:1392: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1459: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure: In function 'main':
+configure:1454: warning: incompatible implicit declaration of built-in function 'exit'
+configure:1483: checking for pid_t
+configure:1523: checking if malloc is declared in stdlib.h or malloc.h
+configure:1560: checking if ftell is declared in stdio.h
+configure:1580: checking if fdopen is declared in stdio.h
+configure:1600: checking if popen is declared in stdio.h
+configure:1620: checking if INFINITY is declared in math.h
+configure:1644: checking size of int
+configure:1664: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure: In function 'main':
+configure:1658: warning: incompatible implicit declaration of built-in function 'exit'
+configure:1685: checking size of long
+configure:1705: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure: In function 'main':
+configure:1699: warning: incompatible implicit declaration of built-in function 'exit'
+configure:1726: checking size of long long
+configure:1746: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure: In function 'main':
+configure:1740: warning: incompatible implicit declaration of built-in function 'exit'
+configure:1783: checking for working const
+configure:1837: gcc -c  -O4 -march=i686  conftest.c 1>&5
+configure:1865: checking for isatty
+configure:1893: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:1915: checking for times
+configure:1943: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:1965: checking for time
+configure:1993: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2015: checking for gettimeofday
+configure:2043: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2065: checking for times
+configure:2115: checking for getrusage
+configure:2143: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2165: checking for perror
+configure:2193: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2215: checking for pipe
+configure:2243: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2265: checking for wait
+configure:2293: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2315: checking for popen
+configure:2343: gcc -o conftest  -O4 -march=i686   conftest.c  1>&5
+configure:2370: checking for gsort
+configure:2370: checking for sort
