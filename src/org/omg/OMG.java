@@ -33,6 +33,7 @@ import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 /**
+ * Open Molecule Generation
  * The main class collecting parameters and setting global objects
  * 
  * @author julio
