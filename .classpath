@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/cdk-src+libs-1.4.7"/>
+	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/3"/>
+	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/cdk"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/antlr.jar"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/cmlxom-2.5-b1.jar"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/commons-cli-1.0.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/jama-1.0.2.jar" sourcepath="/cdk/cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/javacc.jar"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/jgrapht-0.6.0.jar" sourcepath="/cdk/cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/jniinchi-0.7.jar" sourcepath="/cdk/cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/log4j.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/signatures-1.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/vecmath1.2-1.14.jar" sourcepath="/cdk/cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/xercesImpl-2.9.0.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/xml-apis.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/xom-1.1.jar" sourcepath="/cdk/cdksrc.zip"/>
+	<classpathentry exported="true" kind="lib" path="/cdk/jar/xpp3-1.1.4c.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -14,7 +14,6 @@ import java.util.List;
 
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
-import org.openscience.cdk.Molecule;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.graph.ConnectivityChecker;
@@ -23,7 +22,6 @@ import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IChemSequence;
-import org.openscience.cdk.interfaces.IMolecule;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.io.MDLV2000Writer;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
@@ -31,6 +29,8 @@ import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
+
+import signature.chemistry.Molecule;
 
 /**
  * Open Molecule Generation
@@ -111,7 +111,7 @@ public class OMG{
 			IChemSequence sequence = fileContents.getChemSequence(0);
 
 			for (int i=0; i<sequence.getChemModelCount(); i++) {
-				IMolecule frag = sequence.getChemModel(i).getMoleculeSet().getMolecule(0);
+				IAtomContainer frag = sequence.getChemModel(i).getMoleculeSet().getAtomContainer(0);
 
 				try {
 					acontainer = MolManipulator.buildFromFragment(acontainer,frag);
@@ -181,14 +181,14 @@ public class OMG{
 		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
 		hAdder.addImplicitHydrogens(acprotonate);
 		if(satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH)){
-			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getMoleculeCount() == 1){
+			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
 
 				if(!globalmap.containsKey(canstr2)){
 					globalmap.put(canstr2, null);
 					if(wfile){
 						StringWriter writer = new StringWriter();
 						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-						mdlWriter.write(new Molecule(acprotonate));
+						mdlWriter.write(acprotonate);
 						outFile.write(writer.toString());
 						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
 					}

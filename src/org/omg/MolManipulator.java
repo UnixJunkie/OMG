@@ -10,7 +10,6 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
-import org.openscience.cdk.interfaces.IMolecule;
 
 
 public class MolManipulator {
@@ -307,7 +306,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 
 
 	public static IAtomContainer buildFromFragment(IAtomContainer acontainer,
-			IMolecule frag) throws CloneNotSupportedException {
+			IAtomContainer frag) throws CloneNotSupportedException {
 		List<IAtom> listcont = new ArrayList<IAtom>();
 		for(IAtom atom: frag.atoms()){
 			if(atom.getSymbol().equals("H")){
