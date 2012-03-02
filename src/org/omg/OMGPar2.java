@@ -11,7 +11,11 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
+import org.omg.OMGPar.Generator;
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
@@ -36,7 +40,7 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
  * 
  * @author julio
  */
-public class OMG{
+public class OMGPar2{
 	/**Output File containing the list of graph. */
 	BufferedWriter outFile;
 	HashMap<String, Byte> globalmap;
@@ -44,9 +48,31 @@ public class OMG{
 	private int nH;
 	private static boolean wfile = false;
 	private SaturationChecker satCheck;
+	
+    int poolSize = 20;
+    
+    int maxPoolSize = 20;
+ 
+    long keepAliveTime = 100;
+ 
+    ThreadPoolExecutor threadPool = null;
+ 
+    final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(500);
+ 
+ 
+	public OMGPar2() { 
+//		threadPool = Executors.newFixedThreadPool(threadCount);
+	    threadPool = new ThreadPoolExecutor(poolSize, maxPoolSize,
+	                keepAliveTime, TimeUnit.SECONDS, queue);
+	}
+
+	private void generateMol(IAtomContainer atom, String canon) {
+		threadPool.execute(new Generate(atom, canon));
+	}
+
 	public static void main(String[] args) throws IOException{
 
-		OMG gen = new OMG();
+		OMGPar2 gen = new OMGPar2();
 		String formula = "C4H10";
 		String fragments = null;
 		String out = "default_out.sdf";
@@ -75,9 +101,7 @@ public class OMG{
 		}
 
 	}
-	public OMG(){
 
-	}
 	void initializeMolecule(String formula, String fragments, String output) throws CDKException, FileNotFoundException, CloneNotSupportedException {
 		long before = System.currentTimeMillis();
 
@@ -161,15 +185,26 @@ public class OMG{
 
 
 
+class Generate implements Runnable {
 
-
-	private void generateMol(IAtomContainer acontainer, String canstr2) throws CloneNotSupportedException, CDKException, IOException {
+	IAtomContainer acontainer;
+	String canstr2;
+	
+	Generate(IAtomContainer a, String c) {
+		acontainer = a;
+		canstr2 = c;
+	}
+		//	throws CloneNotSupportedException, CDKException, IOException 
+			
+	public void run ()	{
 		/*We check that the atoms are connected in the same molecules
 		 * this is, they are not separated fragments*/
 		/*We add hydrogens in order to check if the molecule is saturated.
 		 * We will accept the molecule if the number of hydrogens necessary to saturate 
 		 * is the same as the hydrogens in the original formula*/
-		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
+		IAtomContainer acprotonate;
+		try {
+			acprotonate = (IAtomContainer) acontainer.clone();
 
 		for (IAtom atom : acprotonate.atoms()) {
 			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
@@ -291,9 +326,20 @@ public class OMG{
 			}		
 			return;				
 		}
+	
+		} catch (CloneNotSupportedException e) {
+			// TODO Auto-generated catch block
+			System.err.println("Excpetion Exception Exception");
+			e.printStackTrace();
+		}catch (CDKException e) {
+			// TODO Auto-generated catch block
+			System.err.println("Excpetion Exception Exception");
+			e.printStackTrace();
+		}
+
 
 	}
-
+}
 
 	public int getFinalCount() {
 		// TODO Auto-generated method stub
