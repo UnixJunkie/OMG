@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
@@ -42,32 +43,39 @@ public class OMGPar{
 	/**Output File containing the list of graph. */
 	BufferedWriter outFile;
 	HashMap<String, Byte> globalmap;
-	int mol_counter;
+	AtomicInteger mol_counter;
 	private int nH;
 	private static boolean wfile = false;
 	private SaturationChecker satCheck;
 //	private final static int threadCount = 20;
 //	private ExecutorService threadPool;
 	
-    int poolSize = 20;
+    private static final int poolSize = 20;
     
-    int maxPoolSize = 20;
+//    int maxPoolSize = 20;
+// 
+//    long keepAliveTime = 100;
  
-    long keepAliveTime = 100;
+    ExecutorService threadPool = null;
+    
  
-    ThreadPoolExecutor threadPool = null;
- 
-    final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(500);
+//    final ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(500);
  
  
 	public OMGPar() { 
-//		threadPool = Executors.newFixedThreadPool(threadCount);
-	    threadPool = new ThreadPoolExecutor(poolSize, maxPoolSize,
-	                keepAliveTime, TimeUnit.SECONDS, queue);
+		threadPool = Executors.newFixedThreadPool(poolSize);
+//	    threadPool = new ThreadPoolExecutor(poolSize, maxPoolSize, keepAliveTime, TimeUnit.SECONDS, queue);
 	}
 
+	private int threadCount=0;
 	private void generateMol(IAtomContainer atom, String canon) {
-		threadPool.execute(new Generator(atom, canon));
+		try {
+			threadPool.execute(new Generator(atom, canon));
+			threadCount++;
+			System.out.println("Threads successful: "+threadCount);
+		} catch (RejectedExecutionException ree){
+			System.exit(20);
+		}
 	}
 
 	public static void main(String[] args) throws IOException{
@@ -151,7 +159,7 @@ public class OMGPar{
 
 
 
-		mol_counter = 0;
+		mol_counter  = new AtomicInteger(0);
 		try {
 			outFile = new BufferedWriter(new FileWriter(output));
 		} catch (IOException e) {
@@ -181,6 +189,8 @@ public class OMGPar{
 		}
 
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
+		
+//		threadPool.shutdown(); TODO: where to put?
 	}
 
 
@@ -217,9 +227,9 @@ public class OMGPar{
 				// TODO: Is it safe to use satCheck concurrently?
 				if(satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH)){
 					if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
-						mol_counter++;
+						mol_counter.getAndIncrement();
 	
-						// Not needed if we know there are no duplicates, e.g., when no initial fragmemts are given
+						// Not needed if we know there are no duplicates, e.g., when no initial fragments are given
 	//					if(!globalmap.containsKey(canstr2)){
 	//						globalmap.put(canstr2, null);
 	//						if(wfile){
@@ -262,7 +272,7 @@ public class OMGPar{
 						}
 		
 						// end add bond
-						IAtomContainer canonM_ext = m_ext; // MolManipulator.getcanonical(m_ext);
+						IAtomContainer canonM_ext = m_ext; // TODO: MolManipulator.getcanonical(m_ext);
 		
 				        
 						String canstr =  MolManipulator.array2string(MolManipulator.mol2array(canonM_ext));
@@ -316,11 +326,9 @@ public class OMGPar{
 							}
 							else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
 							}
-		
-							if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
-		//						m_ext = null;
-		//						bondAdd = null;
-								
+
+							if(MolManipulator.aresame(acontainer, m_ext)||(acontainer.getBondCount()==0)){
+//							if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
 								// generate a parallel task instead of a recursive call
 								generateMol(canonM_ext, canstr);	
 	
@@ -342,7 +350,7 @@ public class OMGPar{
 	}
 
 	public int getFinalCount() {
-		// TODO Auto-generated method stub
-		return mol_counter;
+		// TODO check to make sure the count is finished!
+		return mol_counter.get();
 	}
 }
