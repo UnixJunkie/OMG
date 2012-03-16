@@ -241,7 +241,7 @@ public class OMG{
 						lastBondID[0] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(0).getID();
 						lastBondID[1] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(1).getID();
 						//					we remove select the last bond if it was not in the fragment, or if it was in the fragment
-						//					but its desgree augmented
+						//					but its degree augmented
 						bondAdd = canonM_ext.getBond(canonM_ext.getBondCount()-i);
 						if(!(bondAdd.getProperty("BondINfrag")!= null)){
 							lastNotInFrag = true;
