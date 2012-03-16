@@ -46,7 +46,7 @@ public class PMG_ParallelExecutor{
 	AtomicInteger mol_counter;
 	private SaturationChecker satCheck = new SaturationChecker();
 	
-	private static final int executorCount = 4;
+	private static final int executorCount = 6;
 	ExecutorService executor[];
 	AtomicInteger startedTasks, finishedTasks;
 
