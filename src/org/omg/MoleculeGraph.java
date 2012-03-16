@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +28,6 @@ import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 import fi.tkk.ics.jbliss.Graph;
-import fi.tkk.ics.jbliss.Graph.Vertex;
 
 
 /**
@@ -56,7 +54,7 @@ public class MoleculeGraph {
 
 
 	public int initialize (String formula) throws CloneNotSupportedException{
-		atomGraph = new Graph<>();
+		atomGraph = new Graph<Integer>();
 		acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
 

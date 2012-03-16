@@ -171,7 +171,10 @@ public class PMG_ParallelExecutor{
 					}
 //				return;				
 				}
-			} catch (CloneNotSupportedException | CDKException e) {
+			} catch (CloneNotSupportedException e){
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (CDKException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}

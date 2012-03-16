@@ -23,6 +23,5 @@
 			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="openmg-code/lib"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry combineaccessrules="false" kind="src" path="/Bliss"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
