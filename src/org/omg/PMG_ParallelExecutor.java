@@ -48,7 +48,7 @@ public class PMG_ParallelExecutor{
 	
 	private static final int executorCount = 4;
 	ExecutorService executor[];
-	AtomicInteger startedTasks, finishedTasks;
+	AtomicInteger startedTasks;
 
 	private int nH;
 //	private static boolean wfile = false;
@@ -56,16 +56,40 @@ public class PMG_ParallelExecutor{
 	public PMG_ParallelExecutor(){
 		mol_counter = new AtomicInteger(0);
 		startedTasks = new AtomicInteger(0);
-		finishedTasks = new AtomicInteger(0);
 		executor = new ExecutorService[executorCount];
 		for (int i=0; i<executorCount; i++){
 			executor[i] = Executors.newSingleThreadExecutor();
 		}
 	}
 
+	public class AtomicModInteger {
+	    private AtomicInteger value;
+	    private final int max;
+
+	    public AtomicModInteger(int start, int max) {
+	        this.value = new AtomicInteger(start);
+	        this.max = max;
+	    }
+
+	    public int get() {
+	        return value.get();
+	    }
+
+	    /* Simple modification of AtomicInteger.incrementAndGet() */
+	    public int incrementAndGet() {
+	        for (;;) {
+	            int current = get();
+	            int next = (current + 1) % max;
+	            if (value.compareAndSet(current, next))
+	                return next;
+	        }
+	    }
+	}
+
+	AtomicModInteger loadBalance = new AtomicModInteger(0, executorCount);
 	private void generateTaskMol(MoleculeGraph molecule) {
-		int t = startedTasks.getAndIncrement();
-		executor[t%executorCount].execute(new Generator(molecule));
+		startedTasks.getAndIncrement();
+		executor[loadBalance.incrementAndGet()].execute(new Generator(molecule));
 	}
 
 	public static void main(String[] args) throws IOException{
@@ -172,24 +196,21 @@ public class PMG_ParallelExecutor{
 //				return;				
 				}
 			} catch (CloneNotSupportedException e){
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (CDKException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			finishedTasks.incrementAndGet();
+			startedTasks.decrementAndGet();
 		}
 		
 	}
 
 	public int getFinalCount() {
 		// TODO make sure the computation is finished before returning the final count
-		while (finishedTasks.get() < startedTasks.get()){
+		while (0 < startedTasks.get()){
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
