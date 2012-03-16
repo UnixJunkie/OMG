@@ -125,9 +125,18 @@ public class PMG_ParallelExecutor{
 
 		long after = System.currentTimeMillis();		
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
+		
+		gen.shutdown();
 	}
 
 	
+	private void shutdown() {
+		for (ExecutorService e : executor){
+			e.shutdown();
+		}
+	}
+
+
 	private class Generator implements Runnable {
 		MoleculeGraph mol;
 		

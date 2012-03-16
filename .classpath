@@ -17,6 +17,12 @@
 	<classpathentry exported="true" kind="lib" path="/cdk/jar/xml-apis.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
 	<classpathentry exported="true" kind="lib" path="/cdk/jar/xom-1.1.jar" sourcepath="/cdk/cdksrc.zip"/>
 	<classpathentry exported="true" kind="lib" path="/cdk/jar/xpp3-1.1.4c.jar" sourcepath="/cdk/org.openscience.cdksrc.zip"/>
-	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/cdk"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/cdk"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/jBliss">
+		<attributes>
+			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="openmg-code/lib"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry combineaccessrules="false" kind="src" path="/Bliss"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
