@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
@@ -43,19 +44,19 @@ public class PMG_ParallelExecutor{
 	/**Output File containing the list of graph. */
 //	BufferedWriter outFile;
 
-	AtomicInteger mol_counter;
+	AtomicLong mol_counter;
 	private SaturationChecker satCheck = new SaturationChecker();
 	
 	private static final int executorCount = 6;
 	ExecutorService executor[];
-	AtomicInteger startedTasks;
+	AtomicLong startedTasks;
 
 	private int nH;
 //	private static boolean wfile = false;
 	
 	public PMG_ParallelExecutor(){
-		mol_counter = new AtomicInteger(0);
-		startedTasks = new AtomicInteger(0);
+		mol_counter = new AtomicLong(0);
+		startedTasks = new AtomicLong(0);
 		executor = new ExecutorService[executorCount];
 		for (int i=0; i<executorCount; i++){
 			executor[i] = Executors.newSingleThreadExecutor();
@@ -117,7 +118,6 @@ public class PMG_ParallelExecutor{
 //		// TODO Auto-generated catch block
 //		e.printStackTrace();
 //	}
-		
 		// start the process of generating structures
 		long before = System.currentTimeMillis();
 		System.out.println(formula);
@@ -205,7 +205,7 @@ public class PMG_ParallelExecutor{
 		
 	}
 
-	public int getFinalCount() {
+	public long getFinalCount() {
 		// TODO make sure the computation is finished before returning the final count
 		while (0 < startedTasks.get()){
 			try {
