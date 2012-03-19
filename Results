@@ -1,3 +1,8 @@
+
+=============================
+OMG sequential execution
+=============================
+
 C4H6O5
 molecules 8070
 Duration: 32000 miliseconds
@@ -5,6 +10,11 @@ Duration: 32000 miliseconds
 C6H6
 molecules 217
 Duration: 1010 miliseconds
+
+C14H30
+molecules 1858
+Duration: 1742078 miliseconds   (almost = 30 minutes)
+
 
 =============================
 PMG by removing last bond:
@@ -16,3 +26,48 @@ Duration: 49304 miliseconds
 C6H6
 molecules 217
 Duration: 1400 miliseconds
+
+
+=============================
+PMG_ParallelExecutor:
+=============================
+C10H22
+molecules 75
+Duration: 6039 miliseconds
+
+C11H24
+molecules 159
+Duration: 15030 miliseconds
+
+C12H26
+molecules 355
+Duration: 53494 miliseconds
+
+
+
+
+Pentane C5H12 3 isomers
+Hexane C6H14 5 isomers
+Heptane C7H16 9 isomers
+Octane C8H18 18 isomers
+Nonane C9H20 35 isomers
+Decane C10H22 75 isomers
+C5H12	3
+C6Hi4	5
+C7H16	9
+C8H18	18
+C9H20	35
+C10H22	75
+C11H24	159
+c12H26	355
+-- PMG crashes...
+C14H30	1858
+C16H34	10359
+
+For any alkane CnH(n+2), where "n" is any integer between 1 and 20, 
+the following sequence represents the number of isomers possible: 
+1, 1, 1, 2, 3, 5, 9, 18, 35, 75, 159, 355, 802, 
+1858, 4347, 10359, 24894, 60523, 148284, 366319.
+
+
+

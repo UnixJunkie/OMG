@@ -47,7 +47,7 @@ public class PMG_ParallelExecutor{
 	AtomicLong mol_counter;
 	private SaturationChecker satCheck = new SaturationChecker();
 	
-	private static final int executorCount = 6;
+	private int executorCount = 6;
 	ExecutorService executor[];
 	AtomicLong startedTasks;
 
@@ -99,10 +99,15 @@ public class PMG_ParallelExecutor{
 		String formula = "C4H10";
 		String fragments = null;
 		String out = "default_out.sdf";
+		MoleculeGraph mol;
+		PMG_ParallelExecutor gen = new PMG_ParallelExecutor();
 		
 		for(int i = 0; i < args.length; i++){
+			if(args[i].equals("-p")){
+				gen.executorCount = Integer.parseInt(args[++i]);
+			}
 			if(args[i].equals("-mf")){
-				formula = args[i+1];
+				formula = args[++i];
 			}
 			else if(args[i].equals("-o")){
 				System.err.println("No output file currently supported in the parallel MG.");
@@ -122,8 +127,6 @@ public class PMG_ParallelExecutor{
 		long before = System.currentTimeMillis();
 		System.out.println(formula);
 		
-		MoleculeGraph mol;
-		PMG_ParallelExecutor gen = new PMG_ParallelExecutor();
 		try {
 			mol = new MoleculeGraph();
 			if (fragments == null)
