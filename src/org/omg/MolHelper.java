@@ -5,10 +5,14 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+
+import javax.management.RuntimeErrorException;
 
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
@@ -27,7 +31,7 @@ import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
-import fi.tkk.ics.jbliss.GraphOriginal;
+import fi.tkk.ics.jbliss.Graph;
 
 
 /**
@@ -38,61 +42,45 @@ import fi.tkk.ics.jbliss.GraphOriginal;
  * @author mmajid
  *
  */
-public class MoleculeGraph {
+public class MolHelper {
 	IAtomContainer acontainer;
-	GraphOriginal<Integer> atomGraph;
 	
-	public MoleculeGraph() {
+	public MolHelper() {
 	}
 
 
-	public MoleculeGraph(IAtomContainer acontainer, GraphOriginal<Integer> aGraph) {
-		super();
+	public MolHelper(IAtomContainer acontainer) {
 		this.acontainer = acontainer;
-		this.atomGraph = aGraph;
 	}
 
 
 	public int initialize (String formula) throws CloneNotSupportedException{
-		atomGraph = new GraphOriginal<Integer>();
 		acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
 
 		// Count and remove the Hydrogens
 		int nH = 0;
+		int atomID = 0;
 		List<IAtom> listcont = new ArrayList<IAtom>();
 		for(IAtom atom: acontainer.atoms()){
 			String symbol = atom.getSymbol();
 			if(symbol.equals("H")){
 				nH++;
 				listcont.add(atom);
+			} else {
+				atom.setID(""+atomID++);
+				atom.setFlag(1, false);
 			}
 		}
 		for(IAtom atom: listcont){
 			acontainer.removeAtom(atom);
 		}
-		
-		// set up other atoms and build the corresponding graph
-		int colorCounter = 0;	// we will start from color 1 (color 0 is reserved for bonds)
-		String prevSymbol = "";
-		int na = acontainer.getAtomCount();
-		for (int i=0; i<na; i++){
-			IAtom atom = acontainer.getAtom(i);
-			String symbol = atom.getSymbol();
-			atom.setID(""+i);
-			atom.setFlag(1, false);
-			// Change the color for different atom types
-			if (!prevSymbol.equals(symbol)) {	// TODO: Assuming that atoms are sorted by their symbol
-				prevSymbol = symbol;
-				colorCounter ++;
-			}
-			// Add a vertex for each atom (initially there are no bonds between the atoms)
-			atomGraph.add_vertex(i, colorCounter);
-		}
 		return nH;
 	}
 	
 	public int initialize (String formula, String fragments) throws CloneNotSupportedException, CDKException, FileNotFoundException{
+		throw new RuntimeErrorException(new Error("The fragments are not yet implemented."));
+		/*
 		// generate the atom as in the above constructor
 		int nH = this.initialize(formula);
 
@@ -111,10 +99,11 @@ public class MoleculeGraph {
 				e1.printStackTrace();
 			}
 		}
-		// TODO: Add the edges corresponding to the fragment
+		// TODO: make it canonical?
 		
 		acontainer = MolManipulator.getcanonical(acontainer);
 		return nH;
+		*/
 	}
 		
 	/**
@@ -159,8 +148,9 @@ public class MoleculeGraph {
 		assert labeling != null;
 
 		IAtomContainer canonM_ext = (IAtomContainer) m_ext.clone();
+		int bondCount = m_ext.getBondCount();	// all bonds have color zero, so they have taken the small indices
 		for (IAtom a : canonM_ext.atoms()) {
-			a.setID(""+labeling.get(Integer.parseInt(a.getID())));
+			a.setID(""+(labeling.get(Integer.parseInt(a.getID()))-bondCount));
 		}
 		
 		return canonM_ext;
@@ -173,52 +163,89 @@ public class MoleculeGraph {
 	 * @throws CloneNotSupportedException
 	 * @throws CDKException
 	 */
-	ArrayList<MoleculeGraph> addOneBond() throws CloneNotSupportedException, CDKException{
-    	Set<GraphOriginal<Integer>> visited = new TreeSet<GraphOriginal<Integer>>();
-		ArrayList<MoleculeGraph> extMolList = new ArrayList<MoleculeGraph>();
+	ArrayList<MolHelper> addOneBond() throws CloneNotSupportedException, CDKException{
+    	Set<String> visited = new HashSet<>();
+		ArrayList<MolHelper> extMolList = new ArrayList<MolHelper>();
 		
 		ArrayList<int[]> extBondlist = MolManipulator.extendMol(acontainer);
 		
-		Integer vertexID = atomGraph.nof_vertices();
 		for(int[] bond : extBondlist){
-			GraphOriginal<Integer> extGraph = atomGraph; //.copy();
-			
-			// add the bond as a new vertex and the corresponding edges to the graph representation
-			extGraph.add_vertex(vertexID , 0);
-			extGraph.add_edge(vertexID, Integer.parseInt(acontainer.getAtom(bond[0]).getID()));
-			extGraph.add_edge(vertexID, Integer.parseInt(acontainer.getAtom(bond[1]).getID()));
-			
-			Map<Integer, Integer> canonical_labeling = extGraph.canonical_labeling();
-			GraphOriginal<Integer> canonicalExtGraph = extGraph.relabel(canonical_labeling);
-			extGraph.del_vertex(vertexID);
+			// add one bond and canonize 
+			IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
+			incBond(bond[0], bond[1], copyMol);
+			IAtomContainer canExtMol = relabel(new Graph().canonical_labeling(copyMol), copyMol);
 
-			if (visited.add(canonicalExtGraph) == false) continue;
+			if (visited.add(molString(canExtMol)) == false) continue;	
+
+			if (acontainer.getBondCount()==0){ // no need to check canonical augmentation
+				extMolList.add(new MolHelper (copyMol)); 
+				continue;
+			}
+
+			// remove the last bond and canonize again (to check for canonical augmentation)
+			copyMol = (IAtomContainer) canExtMol.clone();
+			decBond(bond[0], bond[1], copyMol);
+			copyMol = relabel(new Graph().canonical_labeling(copyMol), copyMol);
 			
-			if (isCanonicallyAugmented(canonicalExtGraph)){
-				IAtomContainer relabeledMolecule = relabel(canonical_labeling, acontainer);
-				incBond(bond[0], bond[1], relabeledMolecule);
-				extMolList.add(new MoleculeGraph (relabeledMolecule, canonicalExtGraph)); 
+			if (aresame(acontainer, copyMol)){
+				extMolList.add(new MolHelper(canExtMol)); 
 			}
 		}
 		return extMolList;
 	}
 
-	/**
-	 * Checks using bliss 
-	 * @param cGraph
-	 * @return
-	 */
-	private boolean isCanonicallyAugmented(GraphOriginal<Integer> cGraph) {
-		GraphOriginal<Integer> checkGraph = cGraph.copy();
-		int bondCount = acontainer.getBondCount();
-		if (bondCount==0) return true;
-		int d=0;	// Since the bond vertices always have 0 as color, the first vertex in a canonical graph corresponds to a bond
-		for (d=checkGraph.nof_vertices()-1; checkGraph.getVertexColor(d) != 0; d--);	// get the (vertex corresponding to the) last bond
-		checkGraph.del_vertex(d);
-		checkGraph = checkGraph.relabel(checkGraph.canonical_labeling());
-		return checkGraph.compareTo(atomGraph) == 0;
+	private static String molString(IAtomContainer ac) {
+		StringBuffer s = new StringBuffer();
+		int aCount = ac.getAtomCount();
+		int[][] ar = molArray(ac);	
+		// Turn the adjacency graph into a string by taking only the lower half.
+		for (int i=0; i<aCount; i++)
+			for (int j=0; j<i; j++){
+				s.append(ar[i][j]);
+			}
+
+		return s.toString();
 	}
-	
+
+
+	/**
+	 * @param ac
+	 * @param aCount
+	 * @return
+	 * @throws NumberFormatException
+	 */
+	private static int[][] molArray(IAtomContainer ac)
+			throws NumberFormatException {
+		int aCount = ac.getAtomCount();
+		int[][] ar = new int[aCount][aCount];
+		for(IBond bond : ac.bonds()){
+			//we read only the bonds and store the bond degree as ar[left][right] and ar[right][left]
+			int left = Integer.parseInt(bond.getAtom(0).getID());
+			int right = Integer.parseInt(bond.getAtom(1).getID());
+			if(bond.getOrder() == IBond.Order.SINGLE){
+				ar[left][right] = 1;
+				ar[right][left] = 1;
+			}
+			else if(bond.getOrder() == IBond.Order.DOUBLE){
+				ar[left][right] = 2;
+				ar[right][left] = 2;
+			}
+			else if(bond.getOrder() == IBond.Order.TRIPLE){
+				ar[left][right] = 3;
+				ar[right][left] = 3;
+			}
+			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
+				ar[left][right] = 4;
+				ar[right][left] = 4;
+			}				
+		}
+		return ar;
+	}
+
+	public static boolean aresame(IAtomContainer ac1, IAtomContainer ac2) {
+		return Arrays.equals(molArray(ac1),molArray(ac2));
+	}
+
 	private void incBond(int leftAtom, int rightAtom, IAtomContainer m_ext) {
 		//Only one object bond is used, and recycled at every time we use it
 		IBond bondAdd = m_ext.getBond(m_ext.getAtom(leftAtom), m_ext.getAtom(rightAtom));
@@ -226,14 +253,29 @@ public class MoleculeGraph {
 			m_ext.addBond(leftAtom, rightAtom, IBond.Order.SINGLE);
 		}
 		else if(bondAdd.getOrder() == IBond.Order.SINGLE){
-			m_ext.getBond(m_ext.getAtom(leftAtom), m_ext.getAtom(rightAtom)).setOrder(IBond.Order.DOUBLE);
+			bondAdd.setOrder(IBond.Order.DOUBLE);
 		}
 		else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
-			m_ext.getBond(m_ext.getAtom(leftAtom), m_ext.getAtom(rightAtom)).setOrder(IBond.Order.TRIPLE);
+			bondAdd.setOrder(IBond.Order.TRIPLE);
 		}
 		else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
-			m_ext.getBond(m_ext.getAtom(leftAtom), m_ext.getAtom(rightAtom)).setOrder(IBond.Order.QUADRUPLE);					
+			bondAdd.setOrder(IBond.Order.QUADRUPLE);					
 		}
 	}
-
+	
+	private void decBond(int left, int right, IAtomContainer m_ext) {
+		IBond bondAdd = m_ext.getBond(m_ext.getAtom(left),m_ext.getAtom(right));
+		if(bondAdd.getOrder() == IBond.Order.SINGLE){
+			m_ext.removeBond(bondAdd);
+		}
+		else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
+			bondAdd.setOrder(IBond.Order.SINGLE);
+		}
+		else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
+			bondAdd.setOrder(IBond.Order.DOUBLE);
+		}
+		else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
+			bondAdd.setOrder(IBond.Order.TRIPLE);
+		}
+	}
 }

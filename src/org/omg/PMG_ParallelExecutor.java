@@ -88,23 +88,22 @@ public class PMG_ParallelExecutor{
 	}
 
 	AtomicModInteger loadBalance = new AtomicModInteger(0, executorCount);
-	private void generateTaskMol(MoleculeGraph molecule) {
+	private void generateTaskMol(MolHelper molecule) {
 		startedTasks.getAndIncrement();
 		executor[loadBalance.incrementAndGet()].execute(new Generator(molecule));
 	}
 
 	public static void main(String[] args) throws IOException{
+		MolHelper mol;
+		PMG_ParallelExecutor pmg = new PMG_ParallelExecutor();
 
 		// parse the command-line arguments
 		String formula = "C4H10";
 		String fragments = null;
 		String out = "default_out.sdf";
-		MoleculeGraph mol;
-		PMG_ParallelExecutor gen = new PMG_ParallelExecutor();
-		
 		for(int i = 0; i < args.length; i++){
 			if(args[i].equals("-p")){
-				gen.executorCount = Integer.parseInt(args[++i]);
+				pmg.executorCount = Integer.parseInt(args[++i]);
 			}
 			if(args[i].equals("-mf")){
 				formula = args[++i];
@@ -117,43 +116,42 @@ public class PMG_ParallelExecutor{
 			}
 		}
 
-//		try {
-//		outFile = new BufferedWriter(new FileWriter(output));
-//	} catch (IOException e) {
-//		// TODO Auto-generated catch block
-//		e.printStackTrace();
-//	}
+		/*
+		try {
+			outFile = new BufferedWriter(new FileWriter(output));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}*/
 		// start the process of generating structures
 		long before = System.currentTimeMillis();
 		System.out.println(formula);
 		
 		try {
-			mol = new MoleculeGraph();
+			mol = new MolHelper();
 			if (fragments == null)
-				gen.nH = mol.initialize(formula);
+				pmg.nH = mol.initialize(formula);
 			else 
-				gen.nH = mol.initialize(formula, fragments);
+				pmg.nH = mol.initialize(formula, fragments);
 			
-			gen.generateTaskMol(mol);
+			pmg.generateTaskMol(mol);
 		} catch (CDKException e) {
 			e.printStackTrace();
 		} catch (CloneNotSupportedException e) {
 			e.printStackTrace();
 		}
-		
-//	try {
-//		outFile.close();
-//	} catch (IOException e) {
-//		// TODO Auto-generated catch block
-//		e.printStackTrace();
-//	}
-		
-		System.out.println("molecules " + gen.getFinalCount());
+		/*
+		try {
+			outFile.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		*/
+		System.out.println("molecules " + pmg.getFinalCount());
 
 		long after = System.currentTimeMillis();		
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
 		
-		gen.shutdown();
+		pmg.shutdown();
 	}
 
 	
@@ -165,9 +163,9 @@ public class PMG_ParallelExecutor{
 
 
 	private class Generator implements Runnable {
-		MoleculeGraph mol;
+		MolHelper mol;
 		
-		public Generator(MoleculeGraph mol) {
+		public Generator(MolHelper mol) {
 			super();
 			this.mol = mol;
 		}
@@ -186,17 +184,15 @@ public class PMG_ParallelExecutor{
 //							outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
 //						}
 					}	
-//				return;
 				}
 				else{
 					// get all possible ways to add one bond to the molecule
-					ArrayList<MoleculeGraph> extMolList = mol.addOneBond();
+					ArrayList<MolHelper> extMolList = mol.addOneBond();
 					
 					// recursively process all extended molecules
-					for (MoleculeGraph  molecule : extMolList) {
+					for (MolHelper  molecule : extMolList) {
 						generateTaskMol(molecule);	
 					}
-//				return;				
 				}
 			} catch (CloneNotSupportedException e){
 				e.printStackTrace();
@@ -204,6 +200,7 @@ public class PMG_ParallelExecutor{
 				e.printStackTrace();
 			}
 			startedTasks.decrementAndGet();
+			mol = null;
 		}
 		
 	}
