@@ -192,14 +192,15 @@ public class PMG_ControlledParallelism{
 					ArrayList<MolHelper> extMolList = mol.addOneBond();
 					
 					// recursively process all extended molecules
-					if (startedTasks.get() > 200) parallelExecution = false;
 					if (parallelExecution)
 					{	// make a parallel call
+						if (startedTasks.get() > 200) parallelExecution = false;
 						for (MolHelper  molecule : extMolList) {
 							generateTaskMol(molecule);
 						}
 					} else
 					{ // do a recursive call on the same thread 
+						if (startedTasks.get() < 100) parallelExecution = true;
 						for (MolHelper  molecule : extMolList) {
 							mol = molecule;
 							startedTasks.incrementAndGet();
