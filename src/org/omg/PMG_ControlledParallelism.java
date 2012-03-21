@@ -50,6 +50,8 @@ public class PMG_ControlledParallelism{
 	private int executorCount = 6;
 	ExecutorService executor[];
 	AtomicLong startedTasks;
+	
+	private boolean parallelExecution = true;
 
 	private int nH;
 //	private static boolean wfile = false;
@@ -190,14 +192,18 @@ public class PMG_ControlledParallelism{
 					ArrayList<MolHelper> extMolList = mol.addOneBond();
 					
 					// recursively process all extended molecules
-					if (startedTasks.get() > executorCount){ // do a recursive call on the same thread 
-						for (MolHelper  molecule : extMolList) {
-							mol = molecule;
-							run();
-						}
-					} else {	// make a parallel call
+					if (startedTasks.get() > 200) parallelExecution = false;
+					if (parallelExecution)
+					{	// make a parallel call
 						for (MolHelper  molecule : extMolList) {
 							generateTaskMol(molecule);
+						}
+					} else
+					{ // do a recursive call on the same thread 
+						for (MolHelper  molecule : extMolList) {
+							mol = molecule;
+							startedTasks.incrementAndGet();
+							run();
 						}
 					}
 				}
