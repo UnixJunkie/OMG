@@ -1,6 +1,6 @@
 
 =============================
-OMG sequential execution
+OMG sequential execution (nauty)
 =============================
 
 C4H6O5
@@ -17,7 +17,7 @@ Duration: 1742078 miliseconds   (almost = 30 minutes)
 
 
 =============================
-PMG by removing last bond:
+PMG by removing last bond: (bliss) sequential
 =============================
 C4H6O5
 molecules 8070
@@ -29,7 +29,7 @@ Duration: 1400 miliseconds
 
 
 =============================
-PMG_ParallelExecutor:
+PMG_ParallelExecutor (with keeping the extra graph)
 =============================
 C10H22
 molecules 75
@@ -42,6 +42,26 @@ Duration: 15030 miliseconds
 C12H26
 molecules 355
 Duration: 53494 miliseconds
+
+
+=============================
+PMG_ParallelExecutor (without keeping the extra graph)
+=============================
+C4H6O5
+molecules 8070
+Duration: 21032 miliseconds
+
+C10H22
+molecules 75
+Duration: 4028 miliseconds
+
+C11H24
+molecules 159
+Duration: 11026 miliseconds
+
+C12H26
+molecules 355
+Duration: 39041 miliseconds
 
 
 

@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,6 +24,7 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.IChemSequence;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
@@ -137,25 +139,6 @@ public class MolHelper {
 	}
 	
 	
-	/**
-	 * Computes the canonical IAtomContainer based on the relabeling provided.
-	 * @param labeling
-	 * @param m_ext
-	 * @return
-	 * @throws CloneNotSupportedException 
-	 */
-	public static IAtomContainer relabel(Map<Integer, Integer> labeling, IAtomContainer m_ext) throws CloneNotSupportedException {
-		assert labeling != null;
-
-		IAtomContainer canonM_ext = (IAtomContainer) m_ext.clone();
-		int bondCount = m_ext.getBondCount();	// all bonds have color zero, so they have taken the small indices
-		for (IAtom a : canonM_ext.atoms()) {
-			a.setID(""+(labeling.get(Integer.parseInt(a.getID()))-bondCount));
-		}
-		
-		return canonM_ext;
-	}
-
 	
 	/**
 	 * It checks all possible ways to add one bond to a molecule, while considering the canonical augmentation of the corresponding graph.
@@ -173,19 +156,28 @@ public class MolHelper {
 			// add one bond and canonize 
 			IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
 			incBond(bond[0], bond[1], copyMol);
-			IAtomContainer canExtMol = relabel(new Graph().canonical_labeling(copyMol), copyMol);
-
+			int[] perm1 = new Graph().canonize(copyMol);
+			IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
 			if (visited.add(molString(canExtMol)) == false) continue;	
 
 			if (acontainer.getBondCount()==0){ // no need to check canonical augmentation
-				extMolList.add(new MolHelper (copyMol)); 
+				extMolList.add(new MolHelper(canExtMol)); 
 				continue;
 			}
 
 			// remove the last bond and canonize again (to check for canonical augmentation)
+			int maxBond = 0; 
+			for (int i=1; i<perm1.length; i++) if (perm1[maxBond] < perm1[i]) maxBond = i;
+			
 			copyMol = (IAtomContainer) canExtMol.clone();
-			decBond(bond[0], bond[1], copyMol);
-			copyMol = relabel(new Graph().canonical_labeling(copyMol), copyMol);
+			Iterator<IBond> bonds = copyMol.bonds().iterator();
+			IBond lastBond;
+			do {
+				lastBond = bonds.next();
+			} while (Integer.parseInt(lastBond.getID()) < maxBond);
+			decBond(lastBond, copyMol);	// remove a bond ....
+			int[] perm = new Graph().canonize(copyMol);
+			copyMol = Graph.relabel(copyMol, perm);
 			
 			if (aresame(acontainer, copyMol)){
 				extMolList.add(new MolHelper(canExtMol)); 
@@ -194,6 +186,13 @@ public class MolHelper {
 		return extMolList;
 	}
 
+
+	
+	/**
+	 * 
+	 * @param ac
+	 * @return
+	 */
 	private static String molString(IAtomContainer ac) {
 		StringBuffer s = new StringBuffer();
 		int aCount = ac.getAtomCount();
@@ -207,6 +206,20 @@ public class MolHelper {
 		return s.toString();
 	}
 
+	public static int orderNumber(Order o){
+		if (o == null)
+			return 0;
+		if(o == IBond.Order.SINGLE){
+			return 1;
+		}
+		if(o == IBond.Order.DOUBLE){
+			return 2;
+		}
+		if(o == IBond.Order.TRIPLE){
+			return 3;
+		}
+		return 4;
+	}
 
 	/**
 	 * @param ac
@@ -222,28 +235,13 @@ public class MolHelper {
 			//we read only the bonds and store the bond degree as ar[left][right] and ar[right][left]
 			int left = Integer.parseInt(bond.getAtom(0).getID());
 			int right = Integer.parseInt(bond.getAtom(1).getID());
-			if(bond.getOrder() == IBond.Order.SINGLE){
-				ar[left][right] = 1;
-				ar[right][left] = 1;
-			}
-			else if(bond.getOrder() == IBond.Order.DOUBLE){
-				ar[left][right] = 2;
-				ar[right][left] = 2;
-			}
-			else if(bond.getOrder() == IBond.Order.TRIPLE){
-				ar[left][right] = 3;
-				ar[right][left] = 3;
-			}
-			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
-				ar[left][right] = 4;
-				ar[right][left] = 4;
-			}				
+			ar[right][left] = ar[left][right] = orderNumber(bond.getOrder());
 		}
 		return ar;
 	}
 
 	public static boolean aresame(IAtomContainer ac1, IAtomContainer ac2) {
-		return Arrays.equals(molArray(ac1),molArray(ac2));
+		return Arrays.deepEquals(molArray(ac1),molArray(ac2));
 	}
 
 	private void incBond(int leftAtom, int rightAtom, IAtomContainer m_ext) {
@@ -263,19 +261,25 @@ public class MolHelper {
 		}
 	}
 	
-	private void decBond(int left, int right, IAtomContainer m_ext) {
-		IBond bondAdd = m_ext.getBond(m_ext.getAtom(left),m_ext.getAtom(right));
-		if(bondAdd.getOrder() == IBond.Order.SINGLE){
-			m_ext.removeBond(bondAdd);
+	private void decBond(IBond bondDel, IAtomContainer m_ext) {
+		// = m_ext.getBond(m_ext.getBondCount()-1);
+//		for (IBond bond : m_ext.bonds()) {
+//			if (Integer.parseInt(bond.getAtom(0).getID()) < Integer.parseInt(bondDel.getAtom(0).getID()) && 
+//				Integer.parseInt(bond.getAtom(1).getID()) < Integer.parseInt(bondDel.getAtom(1).getID())   )
+//				bondDel = bond;
+//		}
+//		IBond bondDel = m_ext.getBond(m_ext.getAtom(leftAtom), m_ext.getAtom(rightAtom));
+		if(bondDel.getOrder() == IBond.Order.SINGLE){
+			m_ext.removeBond(bondDel);
 		}
-		else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
-			bondAdd.setOrder(IBond.Order.SINGLE);
+		else if(bondDel.getOrder() == IBond.Order.DOUBLE){
+			bondDel.setOrder(IBond.Order.SINGLE);
 		}
-		else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
-			bondAdd.setOrder(IBond.Order.DOUBLE);
+		else if(bondDel.getOrder() == IBond.Order.TRIPLE){
+			bondDel.setOrder(IBond.Order.DOUBLE);
 		}
-		else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
-			bondAdd.setOrder(IBond.Order.TRIPLE);
+		else if(bondDel.getOrder() == IBond.Order.QUADRUPLE){
+			bondDel.setOrder(IBond.Order.TRIPLE);
 		}
 	}
 }

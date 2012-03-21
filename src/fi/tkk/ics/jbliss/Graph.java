@@ -10,18 +10,13 @@ package fi.tkk.ics.jbliss;
 import java.io.PrintStream;
 import java.util.*;
 
+import org.omg.MolHelper;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
 
 
 public class Graph {
-	/* Intermediate translator stuff for mapping
-       bliss automorphisms back to jbliss automorphisms */
-	protected Map<Integer,Integer> _bliss_map;
-	protected Map<Integer,Integer> _bliss_map_inv;
-	protected Object         _reporter_param;
-
 	/* The internal JNI interface to true bliss */
 	private native long create();
 	private native void destroy(long true_bliss);
@@ -30,58 +25,59 @@ public class Graph {
 	protected native int[] _canonical_labeling(long true_bliss, Object r);
 	
 	private static Map<String, Integer> colorTable; 
-
+	private static final int bondColor = 1000;
 
 	/**
 	 * Find the canonical labeling and the automorphism group of the graph.
-	 * If the argument reporter is non-null,
-	 * then a generating set of automorphisms is reported by calling its
-	 * {@link Reporter#report} method for each generator.
 	 *
 	 * @return           A canonical labeling permutation
 	 */
-	public Map<Integer, Integer> canonical_labeling(IAtomContainer atomContainer) {
+	public int[] canonize(IAtomContainer atomContainer) {
 		long bliss = create();
 		assert bliss != 0;
-		_bliss_map     = new TreeMap<Integer,Integer>();
-		_bliss_map_inv = new TreeMap<Integer,Integer>();
 		
-		int vertexID = 0;	// used to give a unique ID to the vertices corresponding to bonds
 		// Add each atom as a vertex with a color corresponding to the atom type
-		for(IAtom atom: atomContainer.atoms()){
-			addVertex(bliss, Integer.parseInt(atom.getID()), colorTable.get(atom.getSymbol()));
-			vertexID++;
+		for (IAtom atom : atomContainer.atoms()){
+			_add_vertex(bliss, colorTable.get(atom.getSymbol()));
 		}
 		// Add each bond as a vertex connected to the adjacent atoms (turning a multi-graph to a simple one)
 		for (IBond bond : atomContainer.bonds()) {
-			addVertex(bliss, vertexID, 0);
-			_add_edge(bliss, _bliss_map.get(Integer.parseInt(bond.getAtom(0).getID())), _bliss_map.get(vertexID));
-			_add_edge(bliss, _bliss_map.get(Integer.parseInt(bond.getAtom(1).getID())), _bliss_map.get(vertexID));
-			vertexID++;
+			int atom0 = atomContainer.getAtomNumber(bond.getAtom(0));
+			int atom1 = atomContainer.getAtomNumber(bond.getAtom(1));
+			int orderNumber = MolHelper.orderNumber(bond.getOrder());
+			int vid=0;
+			for (; 0<orderNumber; orderNumber--){
+				vid = _add_vertex(bliss, bondColor);
+				_add_edge(bliss, atom0, vid);
+				_add_edge(bliss, atom1, vid);
+			}
+			bond.setID(""+vid);
 		}
-		int[] cf = _canonical_labeling(bliss, null);
+		int[] cf = _canonical_labeling(bliss, null); 
 		destroy(bliss);
-		TreeMap<Integer,Integer> labeling = new TreeMap<Integer,Integer>();
-		for(Map.Entry<Integer,Integer> e : _bliss_map.entrySet())
-			labeling.put(e.getKey(), cf[e.getValue()]);
-		_bliss_map = null;
-		_bliss_map_inv = null;
-		return labeling;
+
+		return cf;
 	}
 	
 	/**
-	 * @param bliss
-	 * @param vid
-	 * @param color
+	 * @param atomContainer
+	 * @param cf
+	 * @return
+	 * @throws CloneNotSupportedException
 	 */
-	private void addVertex(long bliss, int vid, int color) {
-		int bliss_vertex = _add_vertex(bliss, color);
-		_bliss_map.put(vid, bliss_vertex);
-		_bliss_map_inv.put(bliss_vertex, vid);
+	public static IAtomContainer relabel(IAtomContainer atomContainer, int[] cf)
+			throws CloneNotSupportedException {
+		IAtomContainer canonM_ext = (IAtomContainer) atomContainer.clone();
+		int vid=0;
+		for (IAtom a : canonM_ext.atoms()) {
+			a.setID(""+(cf[vid++]));	
+		}
+//		int n = atomContainer.getAtomCount();
+//		for (vid=0; vid<n; vid++)
+//			atomContainer.getAtom(cf[vid]).setID(""+(vid));
+		return canonM_ext;
 	}
-
-
-
+	
 
 	static {
 		/* Load the C++ library including the true bliss and
