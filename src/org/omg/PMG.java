@@ -81,10 +81,10 @@ public class PMG{
 		long before = System.currentTimeMillis();
 		System.out.println(formula);
 		
-		MoleculeGraph mol;
+		MolHelper mol;
 		PMG gen = new PMG();
 		try {
-			mol = new MoleculeGraph();
+			mol = new MolHelper();
 			if (fragments == null)
 				gen.nH = mol.initialize(formula);
 			else 
@@ -112,7 +112,7 @@ public class PMG{
 
 
 
-	void generateMol(MoleculeGraph mol) throws CloneNotSupportedException, CDKException, IOException {
+	void generateMol(MolHelper mol) throws CloneNotSupportedException, CDKException, IOException {
 		/*We check that the atoms are connected in the same molecules
 		 * this is, they are not separated fragments*/
 		/*We add hydrogens in order to check if the molecule is saturated.
@@ -134,10 +134,10 @@ public class PMG{
 		}
 		else{
 			// get all possible ways to add one bond to the molecule
-			ArrayList<MoleculeGraph> extMolList = mol.addOneBond();
+			ArrayList<MolHelper> extMolList = mol.addOneBond();
 			
 			// recursively process all extended molecules
-			for (MoleculeGraph  molecule : extMolList) {
+			for (MolHelper  molecule : extMolList) {
 				generateMol(molecule);	
 			}
 //			return;				
