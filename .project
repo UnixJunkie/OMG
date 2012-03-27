@@ -3,7 +3,7 @@
 	<name>openmg-code</name>
 	<comment></comment>
 	<projects>
-		<project>cdk-1.2.x</project>
+		<project>cdk</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
