@@ -282,7 +282,7 @@ public class OMG{
 					}
 
 					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
-//
+
 //						m_ext = null;
 //						bondAdd = null;
 
