@@ -50,15 +50,18 @@ public class PMG_ControlledParallelism{
 	private int executorCount = 6;
 	ExecutorService executor[];
 	AtomicLong startedTasks;
+	AtomicModInteger loadBalance;
 	
 	private boolean parallelExecution = true;
 
 	private int nH;
 //	private static boolean wfile = false;
 	
-	public PMG_ControlledParallelism(){
+	public PMG_ControlledParallelism(int e){
 		mol_counter = new AtomicLong(0);
 		startedTasks = new AtomicLong(0);
+		if (e != 0) executorCount = e;
+		loadBalance = new AtomicModInteger(0, executorCount);
 		executor = new ExecutorService[executorCount];
 		for (int i=0; i<executorCount; i++){
 			executor[i] = Executors.newSingleThreadExecutor();
@@ -89,7 +92,6 @@ public class PMG_ControlledParallelism{
 	    }
 	}
 
-	AtomicModInteger loadBalance = new AtomicModInteger(0, executorCount);
 	private void generateTaskMol(MolHelper molecule) {
 		startedTasks.getAndIncrement();
 		executor[loadBalance.incrementAndGet()].execute(new Generator(molecule));
@@ -97,7 +99,7 @@ public class PMG_ControlledParallelism{
 
 	public static void main(String[] args) throws IOException{
 		MolHelper mol;
-		PMG_ControlledParallelism pmg = new PMG_ControlledParallelism();
+		int pDegree = 0;	// use the default parallelism degree
 
 		// parse the command-line arguments
 		String formula = "C4H10";
@@ -105,7 +107,7 @@ public class PMG_ControlledParallelism{
 		String out = "default_out.sdf";
 		for(int i = 0; i < args.length; i++){
 			if(args[i].equals("-p")){
-				pmg.executorCount = Integer.parseInt(args[++i]);
+				pDegree = Integer.parseInt(args[++i]);
 			}
 			if(args[i].equals("-mf")){
 				formula = args[++i];
@@ -128,6 +130,7 @@ public class PMG_ControlledParallelism{
 		long before = System.currentTimeMillis();
 		System.out.println(formula);
 		
+		PMG_ControlledParallelism pmg = new PMG_ControlledParallelism(pDegree);
 		try {
 			mol = new MolHelper();
 			if (fragments == null)

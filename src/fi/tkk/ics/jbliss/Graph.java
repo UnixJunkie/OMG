@@ -90,6 +90,6 @@ public class Graph {
 		colorTable.put("C", 1);
 		colorTable.put("N", 2);
 		colorTable.put("O", 3);
-		colorTable.put("Br", 4);
+		colorTable.put("S", 4);
 	}
 }
