@@ -13,6 +13,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -47,9 +50,11 @@ public class PMG_FixedSizeExecutor{
 	AtomicLong mol_counter;
 	private SaturationChecker satCheck = new SaturationChecker();
 	private int atomCount;
-	
+	private boolean parallelExecution = true;
+
 	private int executorCount = 6;
-	ExecutorService executor;
+	ThreadPoolExecutor executor;
+	LinkedBlockingQueue<Runnable> taskQueue;
 	AtomicLong startedTasks;
 
 	private int nH;
@@ -58,13 +63,14 @@ public class PMG_FixedSizeExecutor{
 	public PMG_FixedSizeExecutor(){
 		mol_counter = new AtomicLong(0);
 		startedTasks = new AtomicLong(0);
-		executor = Executors.newFixedThreadPool(executorCount);
+		taskQueue = new LinkedBlockingQueue<Runnable>();
+		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 	}
 
 
-	private void generateTaskMol(MolHelper molecule, int d) {
+	private void generateTaskMol(MolHelper molecule) {
 		startedTasks.getAndIncrement();
-		executor.execute(new Generator(molecule, d));
+		executor.execute(new Generator(molecule));
 	}
 
 	public static void main(String[] args) throws IOException{
@@ -108,7 +114,7 @@ public class PMG_FixedSizeExecutor{
 				pmg.nH = mol.initialize(formula, fragments);
 			
 			pmg.atomCount = mol.atomCount;
-			pmg.generateTaskMol(mol,0);
+			pmg.generateTaskMol(mol);
 		} catch (CDKException e) {
 			e.printStackTrace();
 		} catch (CloneNotSupportedException e) {
@@ -137,12 +143,10 @@ public class PMG_FixedSizeExecutor{
 
 	private class Generator implements Runnable {
 		MolHelper mol;
-		int depth;
 		
-		public Generator(MolHelper mol, int d) {
+		public Generator(MolHelper mol) {
 			super();
 			this.mol = mol;
-			this.depth = d;
 		}
 
 		@Override
@@ -160,8 +164,26 @@ public class PMG_FixedSizeExecutor{
 					ArrayList<MolHelper> extMolList = mol.addOneBond();
 					
 					// recursively process all extended molecules
-					for (MolHelper  molecule : extMolList) {
-						generateTaskMol(molecule, depth+1);	
+					if (parallelExecution)
+					{	// make a parallel call
+						if (taskQueue.size() > executorCount*100) {
+							parallelExecution = false;
+							System.out.println("Disabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
+						}
+						for (MolHelper  molecule : extMolList) {
+							generateTaskMol(molecule);
+						}
+					} else
+					{ // do a recursive call on the same thread 
+						if (taskQueue.size() < executorCount*2){
+							parallelExecution = true;
+							System.out.println("Enabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
+						}
+						for (MolHelper  molecule : extMolList) {
+							mol = molecule;
+							startedTasks.incrementAndGet();
+							run();
+						}
 					}
 				}
 			} catch (CloneNotSupportedException e){
