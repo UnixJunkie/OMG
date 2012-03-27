@@ -277,6 +277,7 @@ public class OMG{
 						bondAdd.setOrder(IBond.Order.DOUBLE);
 					}
 					else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
+						bondAdd.setOrder(IBond.Order.TRIPLE);
 					}
 
 					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
