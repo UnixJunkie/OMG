@@ -173,7 +173,7 @@ public class OMG{
 
 		for (IAtom atom : acprotonate.atoms()) {
 			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
-
+			
 			AtomTypeManipulator.configure(atom, type);
 		}
 		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
