@@ -17,6 +17,9 @@ import org.openscience.cdk.interfaces.IBond;
 
 
 public class Graph {
+	public int[] orbitRep;
+	private int atomCount;
+
 	/* The internal JNI interface to true bliss */
 	private native long create();
 	private native void destroy(long true_bliss);
@@ -24,6 +27,25 @@ public class Graph {
 	protected native void _add_edge(long true_bliss, int v1, int v2);
 	protected native int[] _canonical_labeling(long true_bliss, Object r);
 	
+	/**
+	 * Upon receiving a new automorphism (permutation), we join the orbits accordingly.
+	 * @param aut
+	 */
+	protected void _report(int[] aut)
+	{
+//		System.out.print("Aut: ");
+		for (int i=0; i<atomCount; i++){
+//			System.out.print(""+aut[i]+" ");
+			if (orbitRep[orbitRep[i]] < orbitRep[orbitRep[aut[i]]])
+				orbitRep[aut[i]] = orbitRep[orbitRep[i]];
+			else
+				orbitRep[i] = orbitRep[orbitRep[aut[i]]];
+		}
+//		System.out.print(";;\tOrbit:");
+//		for (int i:orbitRep) System.out.print(" "+orbitRep[i]);
+//		System.out.println();
+	}
+
 	private static Map<String, Integer> colorTable; 
 	private static final int bondColor = 1000;
 
@@ -32,7 +54,14 @@ public class Graph {
 	 *
 	 * @return           A canonical labeling permutation
 	 */
-	public int[] canonize(IAtomContainer atomContainer) {
+	public int[] canonize(IAtomContainer atomContainer, boolean report) {
+		// initialize the orbit calculation
+		atomCount = atomContainer.getAtomCount();
+		orbitRep = new int[atomCount ];
+		for (int i=0; i<atomCount; i++){
+			orbitRep[i] = i;	// start with no symmetry
+		}
+		// create a bliss instance for calculating the canonical labeling
 		long bliss = create();
 		assert bliss != 0;
 		
@@ -53,7 +82,7 @@ public class Graph {
 			}
 			bond.setID(""+vid);
 		}
-		int[] cf = _canonical_labeling(bliss, null); 
+		int[] cf = _canonical_labeling(bliss, report?1:null); 
 		destroy(bliss);
 
 		return cf;
@@ -61,16 +90,16 @@ public class Graph {
 	
 	/**
 	 * @param atomContainer
-	 * @param cf
+	 * @param perm
 	 * @return
 	 * @throws CloneNotSupportedException
 	 */
-	public static IAtomContainer relabel(IAtomContainer atomContainer, int[] cf)
+	public static IAtomContainer relabel(IAtomContainer atomContainer, int[] perm)
 			throws CloneNotSupportedException {
 		IAtomContainer canonM_ext = (IAtomContainer) atomContainer.clone();
 		int vid=0;
 		for (IAtom a : canonM_ext.atoms()) {
-			a.setID(""+(cf[vid++]));	
+			a.setID(""+(perm[vid++]));	
 		}
 //		int n = atomContainer.getAtomCount();
 //		for (vid=0; vid<n; vid++)

@@ -68,13 +68,13 @@ public class PMG_FixedSizeExecutor{
 	}
 
 
-	private void generateTaskMol(MolHelper molecule) {
+	private void generateTaskMol(MolHelper2 molecule) {
 		startedTasks.getAndIncrement();
 		executor.execute(new Generator(molecule));
 	}
 
 	public static void main(String[] args) throws IOException{
-		MolHelper mol;
+		MolHelper2 mol;
 		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
 
 		// parse the command-line arguments
@@ -107,7 +107,7 @@ public class PMG_FixedSizeExecutor{
 		System.out.println(formula);
 		
 		try {
-			mol = new MolHelper();
+			mol = new MolHelper2();
 			if (fragments == null)
 				pmg.nH = mol.initialize(formula);
 			else 
@@ -142,9 +142,9 @@ public class PMG_FixedSizeExecutor{
 
 
 	private class Generator implements Runnable {
-		MolHelper mol;
+		MolHelper2 mol;
 		
-		public Generator(MolHelper mol) {
+		public Generator(MolHelper2 mol) {
 			super();
 			this.mol = mol;
 		}
@@ -161,7 +161,7 @@ public class PMG_FixedSizeExecutor{
 				}
 				else{
 					// get all possible ways to add one bond to the molecule
-					ArrayList<MolHelper> extMolList = mol.addOneBond();
+					ArrayList<MolHelper2> extMolList = mol.addOneBond();
 					
 					// recursively process all extended molecules
 					if (parallelExecution)
@@ -170,7 +170,7 @@ public class PMG_FixedSizeExecutor{
 							parallelExecution = false;
 							System.out.println("Disabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
 						}
-						for (MolHelper  molecule : extMolList) {
+						for (MolHelper2  molecule : extMolList) {
 							generateTaskMol(molecule);
 						}
 					} else
@@ -179,7 +179,7 @@ public class PMG_FixedSizeExecutor{
 							parallelExecution = true;
 							System.out.println("Enabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
 						}
-						for (MolHelper  molecule : extMolList) {
+						for (MolHelper2  molecule : extMolList) {
 							mol = molecule;
 							startedTasks.incrementAndGet();
 							run();

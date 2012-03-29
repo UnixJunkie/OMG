@@ -100,4 +100,15 @@ the following sequence represents the number of isomers possible:
 1858, 4347, 10359, 24894, 60523, 148284, 366319.
 
 
-
+==========================================
+Controlled (harnessed) parallelism)
+==========================================
+C4H7NO3
+Disabling parallelism at task queue of 204 with active count: 6
+Enabling parallelism at task queue of 3 with active count: 6
+Disabling parallelism at task queue of 202 with active count: 6
+Enabling parallelism at task queue of 3 with active count: 6
+Disabling parallelism at task queue of 208 with active count: 6
+Enabling parallelism at task queue of 3 with active count: 6
+molecules 23096
+Duration: 38167 miliseconds

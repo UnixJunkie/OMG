@@ -44,17 +44,25 @@ import fi.tkk.ics.jbliss.Graph;
  * @author mmajid
  *
  */
-public class MolHelper {
+public class MolHelper2 {
 	IAtomContainer acontainer;
 	int atomCount=0;
+	String canString;
 	
-	public MolHelper() {
+	int [] rep;
+	
+	public MolHelper2() {
 	}
 
 
-	public MolHelper(IAtomContainer acontainer) {
+	public MolHelper2(IAtomContainer acontainer, int[] orbit, String molString) {
 		this.acontainer = acontainer;
 		atomCount = acontainer.getAtomCount();
+		this.rep = orbit.clone();
+		this.canString = molString;
+//		System.out.print("Mol Orbit:");
+//		for (int i:rep) System.out.print(" "+rep[i]);
+//		System.out.println();
 	}
 
 
@@ -78,6 +86,18 @@ public class MolHelper {
 		for(IAtom atom: listcont){
 			acontainer.removeAtom(atom);
 		}
+		rep = new int[atomCount];
+		int r = -1;
+		String prev="";
+		for (int i=0; i<atomCount; i++){
+			String symbol = acontainer.getAtom(i).getSymbol();
+			if (!symbol.equals(prev)) {
+				prev = symbol;
+				r=i;
+			}
+			rep[i] = r;	// initially all atoms of a type are symmetric
+		}
+		canString = molString(acontainer);
 		return nH;
 	}
 	
@@ -147,100 +167,93 @@ public class MolHelper {
 	 * @throws CloneNotSupportedException
 	 * @throws CDKException
 	 */
-	ArrayList<MolHelper> addOneBond() throws CloneNotSupportedException, CDKException{
+	ArrayList<MolHelper2> addOneBond() throws CloneNotSupportedException, CDKException{
     	Set<String> visited = new HashSet<>();
-		ArrayList<MolHelper> extMolList = new ArrayList<MolHelper>();
+		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
 		
-		ArrayList<int[]> extBondlist = MolManipulator.extendMol(acontainer);
+		int vCount = acontainer.getAtomCount();
 		
-		for(int[] bond : extBondlist){
-			// add one bond and canonize 
-			IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
-			incBond(bond[0], bond[1], copyMol);
-			int[] perm1 = new Graph().canonize(copyMol,false);	// do not report the automorphisms
-			IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
-			if (visited.add(molString(canExtMol)) == false) continue;	
+		// Note that the representative of an atom never has a bigger ID
+		for (int left = 0; left < vCount; left++){
+//			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
+			for (int right = left+1; right < vCount; right++){
+//				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
+				// For the first iteration (in inner loop), we may consider the same orbit as "left"
+				
+				int atom1 = (left);
+				int atom2 = (right);
+				
+				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
+				if (!incBond(atom1, atom2, copyMol)) continue;	
+				CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
+				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
+				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
+				if(type1 == null || type2 == null) continue;
 
-			if (acontainer.getBondCount()==0){ // no need to check canonical augmentation
-				extMolList.add(new MolHelper(canExtMol)); 
-				continue;
-			}
+				// canonize 
+				Graph graph = new Graph();
+				int[] perm1 = graph.canonize(copyMol, true);	// ask for the automorphisms to be reported back
+				IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
+				int[] orbit = graph.orbitRep;
+				String molString = molString(canExtMol);
+				if (visited.add(molString) == false) continue;	
 
-			// remove the last bond and canonize again (to check for canonical augmentation)
-			int maxBond = 0; 
-			for (int i=1; i<perm1.length; i++) if (perm1[maxBond] < perm1[i]) maxBond = i;
-			
-			copyMol = (IAtomContainer) canExtMol.clone();
-			Iterator<IBond> bonds = copyMol.bonds().iterator();
-			IBond lastBond;
-			do {
-				lastBond = bonds.next();
-			} while (Integer.parseInt(lastBond.getID()) < maxBond);
-			decBond(lastBond, copyMol);	// remove a bond ....
-			int[] perm = new Graph().canonize(copyMol,false);	// do not report the automorphisms
-			copyMol = Graph.relabel(copyMol, perm);
-			
-			if (aresame(acontainer, copyMol)){
-				extMolList.add(new MolHelper(canExtMol)); 
+				if (acontainer.getBondCount()==0){ // no need to check canonical augmentation
+					extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+					continue;
+				}
+
+				// remove the last bond and canonize again (to check for canonical augmentation)
+				int maxBond = 0; 
+				for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
+
+				copyMol = (IAtomContainer) canExtMol.clone();
+				Iterator<IBond> bonds = copyMol.bonds().iterator();
+				IBond lastBond;
+				do {
+					lastBond = bonds.next();
+				} while (Integer.parseInt(lastBond.getID()) < maxBond);
+				decBond(lastBond, copyMol);	// remove a bond ....
+
+				int[] perm = graph.canonize(copyMol, true);
+				copyMol = Graph.relabel(copyMol, perm);
+				String parentString = molString(copyMol);
+
+				if (this.canString.equals(parentString)){
+//				if (aresame(acontainer, copyMol)){
+//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
+					extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+				}
 			}
 		}
 		return extMolList;
 	}
 
-	/**
-	 * It checks all possible ways to add one bond to a molecule, while considering the canonical augmentation of the corresponding graph.
-	 * @return
-	 * @throws CloneNotSupportedException
-	 * @throws CDKException
-	 */
-	ArrayList<MolHelper> addOneBond2(int a) throws CloneNotSupportedException, CDKException{
-		ArrayList<MolHelper> extMolList = new ArrayList<MolHelper>();
-		Set<String> visited = new HashSet<>();
-//		int vCount = acontainer.getAtomCount();
 
-    	for (int j = 0; j < a; j++){
-    		IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
-    		while (incBond(a, j, copyMol)) {	
-    			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
-    			IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(a));
-    			IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(j));
-    			if(type1 == null || type2 == null) continue;
-
-    			// canonize 
-    			int[] perm1 = new Graph().canonize(copyMol,false);	// do not report the automorphisms
-    			IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
-
-    			if (visited.add(molString(canExtMol)) == false) continue;	
-
-    			if (acontainer.getBondCount()==0){ // no need to check canonical augmentation
-    				extMolList.add(new MolHelper(canExtMol)); 
-    				continue;
-    			}
-
-    			// remove the last bond and canonize again (to check for canonical augmentation)
-    			int maxBond = 0; 
-    			for (int i=1; i<perm1.length; i++) if (perm1[maxBond] < perm1[i]) maxBond = i;
-
-    			copyMol = (IAtomContainer) canExtMol.clone();
-    			Iterator<IBond> bonds = copyMol.bonds().iterator();
-    			IBond lastBond;
-    			do {
-    				lastBond = bonds.next();
-    			} while (Integer.parseInt(lastBond.getID()) < maxBond);
-    			decBond(lastBond, copyMol);	// remove a bond ....
-    			int[] perm = new Graph().canonize(copyMol,false);	// do not report the automorphisms
-    			copyMol = Graph.relabel(copyMol, perm);
-
-    			if (aresame(acontainer, copyMol)){
-    				extMolList.add(new MolHelper(canExtMol)); 
-    			}
-    		}
-		}
-		return extMolList;
-	}
+//	
+//	private int[] compose(int[] perm, int[] orbit) {
+//		int[] c = new int [atomCount];
+//		for (int i:orbit) c[i] = perm[orbit[i]];
+//		// make sure the smallest in the class is the representative
+//		for (int i:c) 
+//			if (i < c[i]) {
+//				c[c[i]] = i;
+//				c[i] = i;
+//			} else {
+//				c[i] = c[c[i]];	// it may have changed in the meantime!
+//			}
+//		return c;
+//	}
+//
+//
+//	private int findAtomByID(int id) {
+//		int atom;
+//		for (atom=0; atom<atomCount; atom++)
+//			if (acontainer.getAtom(atom).getID().equals(""+id)) return atom;
+//		return -1;	// not found
+//	}
 
 
-	
 	/**
 	 * 
 	 * @param ac
@@ -253,7 +266,7 @@ public class MolHelper {
 		// Turn the adjacency graph into a string by taking only the lower half.
 		for (int i=0; i<aCount; i++)
 			for (int j=0; j<i; j++){
-				s.append(ar[i][j]);
+				s.append(" "+ar[i][j]);
 			}
 
 		return s.toString();
