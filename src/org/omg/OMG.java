@@ -126,6 +126,10 @@ public class OMG{
 
 
 		mol_counter = 0;
+		System.out.println("OMG: Sequntial processing of "+formula+ " started (using nauty as canonizer).");
+		System.out.print("Current atom order is: ");
+		for (IAtom atom:acontainer.atoms()) System.out.print(atom.getSymbol());
+		System.out.println();
 		try {
 			outFile = new BufferedWriter(new FileWriter(output));
 		} catch (IOException e) {
@@ -148,7 +152,6 @@ public class OMG{
 		long after = System.currentTimeMillis();
 		try {
 			outFile.close();
-			System.out.println(formula);
 			System.out.println("molecules " + mol_counter);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -278,7 +281,7 @@ public class OMG{
 						bondAdd.setOrder(IBond.Order.DOUBLE);
 					}
 					else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
-						bondAdd.setOrder(IBond.Order.TRIPLE);
+//						bondAdd.setOrder(IBond.Order.TRIPLE);
 					}
 
 					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
