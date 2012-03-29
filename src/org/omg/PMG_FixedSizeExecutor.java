@@ -52,7 +52,7 @@ public class PMG_FixedSizeExecutor{
 	private int atomCount;
 	private boolean parallelExecution = true;
 
-	private int executorCount = 6;
+	private static int executorCount=6;
 	ThreadPoolExecutor executor;
 	LinkedBlockingQueue<Runnable> taskQueue;
 	AtomicLong startedTasks;
@@ -75,7 +75,6 @@ public class PMG_FixedSizeExecutor{
 
 	public static void main(String[] args) throws IOException{
 		MolHelper2 mol;
-		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
 
 		// parse the command-line arguments
 		String formula = "C4H10";
@@ -83,7 +82,7 @@ public class PMG_FixedSizeExecutor{
 		String out = "default_out.sdf";
 		for(int i = 0; i < args.length; i++){
 			if(args[i].equals("-p")){
-				pmg.executorCount = Integer.parseInt(args[++i]);
+				executorCount = Integer.parseInt(args[++i]);
 			}
 			if(args[i].equals("-mf")){
 				formula = args[++i];
@@ -96,6 +95,7 @@ public class PMG_FixedSizeExecutor{
 			}
 		}
 
+		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
 		/*
 		try {
 			outFile = new BufferedWriter(new FileWriter(output));
@@ -104,7 +104,6 @@ public class PMG_FixedSizeExecutor{
 		}*/
 		// start the process of generating structures
 		long before = System.currentTimeMillis();
-		System.out.println(formula);
 		
 		try {
 			mol = new MolHelper2();
@@ -112,6 +111,11 @@ public class PMG_FixedSizeExecutor{
 				pmg.nH = mol.initialize(formula);
 			else 
 				pmg.nH = mol.initialize(formula, fragments);
+
+			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+pmg.executorCount+" threads).");
+			System.out.print("Current atom order is: ");
+			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
+			System.out.println();
 			
 			pmg.atomCount = mol.atomCount;
 			pmg.generateTaskMol(mol);
