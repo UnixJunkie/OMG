@@ -80,8 +80,12 @@ public class OMG{
 	}
 	void initializeMolecule(String formula, String fragments, String output) throws CDKException, FileNotFoundException, CloneNotSupportedException {
 		long before = System.currentTimeMillis();
+		System.out.println("OMG: Sequntial processing of "+formula+ " started (using nauty as canonizer).");
+		System.out.print("Current atom order is: ");
 
-		IAtomContainer acontainer = MolecularFormulaManipulator.getAtomContainer(
+		IAtomContainer acontainer;
+		while(true) {
+		acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
 
 		nH = 0;
@@ -121,17 +125,22 @@ public class OMG{
 
 			acontainer = MolManipulator.getcanonical(acontainer);
 		}		
-
-
-
-
-		mol_counter = 0;
-		System.out.println("OMG: Sequntial processing of "+formula+ " started (using nauty as canonizer).");
-		System.out.print("Current atom order is: ");
 		for (IAtom atom:acontainer.atoms()) System.out.print(atom.getSymbol());
 		System.out.println();
+		if (formula.equals("C4H7NO3")) {
+			if (!acontainer.getAtom(0).getSymbol().equals("C")) continue;
+			if (!acontainer.getAtom(7).getSymbol().equals("N")) continue;
+		}
+		break;
+		}
+
+		mol_counter = 0;
 		try {
 			outFile = new BufferedWriter(new FileWriter(output));
+			if (wfile){
+				for (IAtom atom:acontainer.atoms()) outFile.write(atom.getSymbol());
+				outFile.write("\n");
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -173,7 +182,7 @@ public class OMG{
 		 * We will accept the molecule if the number of hydrogens necessary to saturate 
 		 * is the same as the hydrogens in the original formula*/
 		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
-
+		
 		for (IAtom atom : acprotonate.atoms()) {
 			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
 			
@@ -186,16 +195,18 @@ public class OMG{
 					mol_counter++;
 
 					// Not needed if we know there are no duplicates, e.g., when no initial fragmemts are given
-//				if(!globalmap.containsKey(canstr2)){
-//					globalmap.put(canstr2, null);
-//					if(wfile){
+				if(!globalmap.containsKey(canstr2)){
+					globalmap.put(canstr2, null);
+					if(wfile){
 //						StringWriter writer = new StringWriter();
 //						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
 //						mdlWriter.write(acprotonate);
 //						outFile.write(writer.toString());
-//						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
-//					}
-//				}
+						outFile.write(canstr2+"\n");
+					}
+				} else {
+					System.out.println("Duplicate");
+				}
 			}	
 
 			hAdder = null;
@@ -297,7 +308,6 @@ public class OMG{
 		}
 
 	}
-
 
 	public int getFinalCount() {
 		// TODO Auto-generated method stub

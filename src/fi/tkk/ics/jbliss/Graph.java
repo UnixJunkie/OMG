@@ -49,6 +49,45 @@ public class Graph {
 	private static Map<String, Integer> colorTable; 
 	private static final int bondColor = 1000;
 
+	
+	public char[] canonize(char[] atoms, char[] bonds) {
+		// create a bliss instance for calculating the canonical labeling
+		long bliss = create();
+		assert bliss != 0;
+		
+		int atomCount=0;
+		// Add each atom as a vertex with a color corresponding to the atom type
+		for (char atom : atoms){
+			_add_vertex(bliss, colorTable.get(""+atom));
+			atomCount++;
+		}
+		int vid=0;
+		// Add each bond as a vertex connected to the adjacent atoms (turning a multi-graph to a simple one)
+		for (int atom0=0; atom0<atomCount; atom0++)
+			for (int atom1=0; atom1<atomCount; atom1++) {
+				char bond = bonds[atom0 * atomCount + atom1];
+				int orderNumber = Integer.parseInt(""+bond);
+				for (; 0<orderNumber; orderNumber--){
+					vid = _add_vertex(bliss, bondColor);
+					_add_edge(bliss, atom0, vid);
+					_add_edge(bliss, atom1, vid);
+				}
+		}
+		int[] cf = _canonical_labeling(bliss, null); 
+		destroy(bliss);
+
+		int edgeCount=atomCount*atomCount;
+		char canonicalBonds[] = new char[edgeCount];
+		for (int left=0; left<atomCount; left++)
+			for(int right=0; right<atomCount; right++){
+				canonicalBonds[cf[left]*atomCount+cf[right]] = bonds[left*atomCount+right];
+			}
+
+		return canonicalBonds;
+	}
+
+	
+	
 	/**
 	 * Find the canonical labeling and the automorphism group of the graph.
 	 *

@@ -70,6 +70,7 @@ public class MolHelper2 {
 		acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
 
+		atomCount = 0;
 		// Count and remove the Hydrogens
 		int nH = 0;
 		List<IAtom> listcont = new ArrayList<IAtom>();

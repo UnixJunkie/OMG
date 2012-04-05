@@ -107,15 +107,23 @@ public class PMG_FixedSizeExecutor{
 		
 		try {
 			mol = new MolHelper2();
+			
+			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+pmg.executorCount+" threads).");
+			System.out.print("Current atom order is: ");
+//			while (true) {
 			if (fragments == null)
 				pmg.nH = mol.initialize(formula);
 			else 
 				pmg.nH = mol.initialize(formula, fragments);
-
-			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+pmg.executorCount+" threads).");
-			System.out.print("Current atom order is: ");
 			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
 			System.out.println();
+//			if (formula.equals("C4H7NO3")) {
+//				if (!mol.acontainer.getAtom(0).getSymbol().equals("C")) continue;
+//				if (!mol.acontainer.getAtom(4).getSymbol().equals("N")) continue;
+//			}
+//			break;
+//			}
+
 			
 			pmg.atomCount = mol.atomCount;
 			pmg.generateTaskMol(mol);
