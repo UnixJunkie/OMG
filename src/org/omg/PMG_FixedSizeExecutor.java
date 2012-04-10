@@ -211,7 +211,10 @@ public class PMG_FixedSizeExecutor{
 		while (0 < startedTasks.get()){
 			try {
 				Thread.sleep(1000);
-				if (60 == time++) System.out.println("Another minute passed and so far the count of molecules = "+mol_counter.get());
+				if (60 == time++) {
+					time = 0;
+					System.out.println("Another minute passed and so far the count of molecules = "+mol_counter.get());
+				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}

@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -53,6 +54,8 @@ public class MolHelper2 {
 	IAtomContainer acontainer;
 	int atomCount=0;
 	String canString="";
+	private static Map<String, Double> maxBondTable; 
+
 	
 	int [] rep;
 	private IAtomContainer acprotonate;
@@ -145,16 +148,20 @@ public class MolHelper2 {
 	 * @throws CDKException
 	 */
 	public boolean isComplete(SaturationChecker satCheck, int nH) throws CloneNotSupportedException, CDKException{
-		acprotonate = (IAtomContainer) acontainer.clone();
+		try{
+			acprotonate = (IAtomContainer) acontainer.clone();
 
-		for (IAtom atom : acprotonate.atoms()) {
-			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
-			
-			AtomTypeManipulator.configure(atom, type);
+			for (IAtom atom : acprotonate.atoms()) {
+				IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
+
+				AtomTypeManipulator.configure(atom, type);
+			}
+			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+			return (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH));
+		} catch (IllegalArgumentException iae) {
+			return false;
 		}
-		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-		hAdder.addImplicitHydrogens(acprotonate);
-		return (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH));
 	}
 	
 	
@@ -194,13 +201,19 @@ public class MolHelper2 {
 	ArrayList<MolHelper2> addOneBond() throws CloneNotSupportedException, CDKException{
     	Set<String> visited = new HashSet<>();
 		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
-		
 		int vCount = acontainer.getAtomCount();
+		int [] bondCounts = new int [vCount];
+		for (IBond b:acontainer.bonds()) {
+			bondCounts[acontainer.getAtomNumber(b.getAtom(0))] += orderNumber(b.getOrder());
+			bondCounts[acontainer.getAtomNumber(b.getAtom(1))] += orderNumber(b.getOrder());
+		}
 		
 		// Note that the representative of an atom never has a bigger ID
 		for (int left = 0; left < vCount; left++){
+			if (maxBondTable.get(acontainer.getAtom(left).getSymbol()) == bondCounts[left]) continue;
 //			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
 			for (int right = left+1; right < vCount; right++){
+				if (maxBondTable.get(acontainer.getAtom(right).getSymbol()) == bondCounts[right]) continue;
 //				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
@@ -209,10 +222,10 @@ public class MolHelper2 {
 				
 				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
 				if (!incBond(atom1, atom2, copyMol)) continue;	
-				CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
-				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
-				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
-				if(type1 == null || type2 == null) continue;
+//				CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
+//				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
+//				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
+//				if(type1 == null || type2 == null) continue;
 
 				// canonize 
 				Graph graph = new Graph();
@@ -386,5 +399,16 @@ public class MolHelper2 {
 			bondDel.setOrder(IBond.Order.TRIPLE);
 		}
 		return true;
+	}
+	static {
+
+		// initialize the table
+		maxBondTable = new HashMap<>();
+		// TODO: read atom symbols from CDK
+		maxBondTable.put("C", new Double(4));
+		maxBondTable.put("N", new Double(5));
+		maxBondTable.put("O", new Double(2));
+		maxBondTable.put("S", new Double(6));
+		maxBondTable.put("P", new Double(5));
 	}
 }

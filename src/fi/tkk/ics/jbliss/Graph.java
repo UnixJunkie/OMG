@@ -161,5 +161,6 @@ public class Graph {
 		colorTable.put("N", 2);
 		colorTable.put("O", 3);
 		colorTable.put("S", 4);
+		colorTable.put("P", 5);
 	}
 }

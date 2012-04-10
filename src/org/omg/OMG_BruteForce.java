@@ -129,45 +129,33 @@ public class OMG_BruteForce{
 		System.out.println();
 		if (formula.equals("C4H7NO3")) {
 			if (!acontainer.getAtom(0).getSymbol().equals("C")) continue;
-			if (!acontainer.getAtom(7).getSymbol().equals("O")) continue;
+			if (!acontainer.getAtom(7).getSymbol().equals("N")) continue;
 		}
 		break;
 		}
 
 		mol_counter = 0;
 		try {
-			outFile = new BufferedWriter(new FileWriter(output));
 			if (wfile){
-				for (IAtom atom:acontainer.atoms()) outFile.write(atom.getSymbol());
-				outFile.write("\n");
+				outFile = new BufferedWriter(new FileWriter(output));
+//				for (IAtom atom:acontainer.atoms()) outFile.write(atom.getSymbol());
+//				outFile.write("\n");
 			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		try {
+
 			satCheck = new SaturationChecker();
-
-			//			}
 			globalmap = new HashMap<String, Byte>();
+			generateMol(acontainer, null);
 
+			long after = System.currentTimeMillis();
 
-				generateMol(acontainer, null);
-			
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}		
-		long after = System.currentTimeMillis();
-		try {
 			outFile.close();
 			System.out.println("molecules " + mol_counter);
-		} catch (IOException e) {
+			System.out.println("Duration: " + (after - before) + " miliseconds\n");
+		}  catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
-		System.out.println("Duration: " + (after - before) + " miliseconds\n");
 	}
 
 
@@ -202,7 +190,7 @@ public class OMG_BruteForce{
 						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
 						mdlWriter.write(acprotonate);
 						outFile.write(writer.toString());
-						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
+						outFile.write("> <Id>\n"+(mol_counter)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
 					}
 				}
 			}	
