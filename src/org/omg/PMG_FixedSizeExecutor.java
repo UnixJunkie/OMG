@@ -9,8 +9,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -59,7 +62,10 @@ public class PMG_FixedSizeExecutor{
 
 	private int nH;
 	private static boolean wFile = false;
-	
+
+	// TODO: This is only for checking duplicates. This should be unnecessary in a good version.
+	private Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
+
 	public PMG_FixedSizeExecutor(){
 		mol_counter = new AtomicLong(0);
 		startedTasks = new AtomicLong(0);
@@ -162,6 +168,7 @@ public class PMG_FixedSizeExecutor{
 //					return;
 				if (mol.isComplete(satCheck, nH)){
 					if (mol.isConnected()) {
+//						if (!molSet.add(mol.canString)) System.err.println("Duplicate");
 						mol_counter.incrementAndGet();
 						if(wFile){
 							mol.writeTo(outFile, mol_counter.get());

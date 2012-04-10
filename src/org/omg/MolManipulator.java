@@ -2,7 +2,9 @@ package org.omg;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
@@ -10,6 +12,7 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.interfaces.IBond.Order;
 
 
 public class MolManipulator {
@@ -233,13 +236,30 @@ public static  ArrayList<int[]> extendMol2(IAtomContainer ac, int currentAtom) t
 	return bondList;
 }
 
+public static int orderNumber(Order o){
+	if (o == null) return 0;
+	switch (o) {
+		case SINGLE: return 1;
+		case DOUBLE: return 2;
+		case TRIPLE: return 3;
+		default:     return 4;
+	}
+}
+
 public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupportedException, CDKException {
 	int vCount = ac.getAtomCount();
+	int [] bondCounts = new int [vCount];
+	for (IBond b:ac.bonds()) {
+		bondCounts[ac.getAtomNumber(b.getAtom(0))] += orderNumber(b.getOrder());
+		bondCounts[ac.getAtomNumber(b.getAtom(1))] += orderNumber(b.getOrder());
+	}
 
 	ArrayList<int[]> bondList = new ArrayList<int[]>();		
 	
 	for (int i = 0; i < vCount; i++){
+		if (maxBondTable.get(ac.getAtom(i).getSymbol()) == bondCounts[i]) continue;
 		for (int j = i+1; j < vCount; j++){
+			if (maxBondTable.get(ac.getAtom(j).getSymbol()) == bondCounts[j]) continue;
 			IBond bond = ac.getBond(ac.getAtom(i), ac.getAtom(j));
 			IAtomContainer acCloned = (IAtomContainer) ac.clone();
 			if(bond == null){					
@@ -258,14 +278,14 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 				continue;
 			}
 
-			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(acCloned.getBuilder());
-			IAtomType type1 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(i));
-		    IAtomType type2 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(j));
-
-		    if((type1 != null) && (type2 != null)){
+//			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(acCloned.getBuilder());
+//			IAtomType type1 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(i));
+//		    IAtomType type2 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(j));
+//
+//		    if((type1 != null) && (type2 != null)){
 
 					bondList.add(new int[] { i, j});
-				}
+//				}
 			}		   			   
 		}			  
 	return bondList;
@@ -396,6 +416,18 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 		return bondremove;
 	}
 
+	private static Map<String, Double> maxBondTable; 
+	static {
+
+		// initialize the table
+		maxBondTable = new HashMap<>();
+		// TODO: read atom symbols from CDK
+		maxBondTable.put("C", new Double(4));
+		maxBondTable.put("N", new Double(5));
+		maxBondTable.put("O", new Double(2));
+		maxBondTable.put("S", new Double(6));
+		maxBondTable.put("P", new Double(5));
+	}
 
 
 }

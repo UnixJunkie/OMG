@@ -128,7 +128,7 @@ public class OMG{
 		for (IAtom atom:acontainer.atoms()) System.out.print(atom.getSymbol());
 		System.out.println();
 		if (formula.equals("C4H7NO3")) {
-			if (!acontainer.getAtom(0).getSymbol().equals("C")) continue;
+			if (!acontainer.getAtom(0).getSymbol().equals("N")) continue;
 			if (!acontainer.getAtom(7).getSymbol().equals("O")) continue;
 		}
 		break;
@@ -182,15 +182,20 @@ public class OMG{
 		 * We will accept the molecule if the number of hydrogens necessary to saturate 
 		 * is the same as the hydrogens in the original formula*/
 		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
-		
-		for (IAtom atom : acprotonate.atoms()) {
-			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
-			
-			AtomTypeManipulator.configure(atom, type);
+		boolean isComplete ;
+		try {
+			for (IAtom atom : acprotonate.atoms()) {
+				IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
+
+				AtomTypeManipulator.configure(atom, type);
+			}
+			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+			isComplete = satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
+		} catch (IllegalArgumentException iae){
+			isComplete = false;
 		}
-		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-		hAdder.addImplicitHydrogens(acprotonate);
-		if(satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH)){
+		if(isComplete){
 			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
 					mol_counter++;
 
@@ -209,7 +214,7 @@ public class OMG{
 				}
 			}	
 
-			hAdder = null;
+//			hAdder = null;
 			acprotonate = null;
 			acontainer = null;
 			return;
