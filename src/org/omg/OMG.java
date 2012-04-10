@@ -129,7 +129,7 @@ public class OMG{
 		System.out.println();
 		if (formula.equals("C4H7NO3")) {
 			if (!acontainer.getAtom(0).getSymbol().equals("C")) continue;
-			if (!acontainer.getAtom(7).getSymbol().equals("N")) continue;
+			if (!acontainer.getAtom(7).getSymbol().equals("O")) continue;
 		}
 		break;
 		}
@@ -198,11 +198,11 @@ public class OMG{
 				if(!globalmap.containsKey(canstr2)){
 					globalmap.put(canstr2, null);
 					if(wfile){
-//						StringWriter writer = new StringWriter();
-//						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-//						mdlWriter.write(acprotonate);
-//						outFile.write(writer.toString());
-						outFile.write(canstr2+"\n");
+						StringWriter writer = new StringWriter();
+						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
+						mdlWriter.write(acprotonate);
+						outFile.write(writer.toString());
+						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
 					}
 				} else {
 					System.out.println("Duplicate");

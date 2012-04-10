@@ -45,7 +45,7 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
  */
 public class PMG_FixedSizeExecutor{
 	/**Output File containing the list of graph. */
-//	BufferedWriter outFile;
+	BufferedWriter outFile;
 
 	AtomicLong mol_counter;
 	private SaturationChecker satCheck = new SaturationChecker();
@@ -58,7 +58,7 @@ public class PMG_FixedSizeExecutor{
 	AtomicLong startedTasks;
 
 	private int nH;
-//	private static boolean wfile = false;
+	private static boolean wFile = false;
 	
 	public PMG_FixedSizeExecutor(){
 		mol_counter = new AtomicLong(0);
@@ -67,6 +67,43 @@ public class PMG_FixedSizeExecutor{
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 	}
 
+	private MolHelper2 initialize(String formula, String fragments, String output) {
+		MolHelper2 mol;
+		try {
+			if (wFile) outFile = new BufferedWriter(new FileWriter(output));
+
+			mol = new MolHelper2();
+
+			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+executorCount+" threads).");
+			System.out.print("Current atom order is: ");
+//			while (true) {
+			if (fragments == null)
+				nH = mol.initialize(formula);
+			else 
+				nH = mol.initialize(formula, fragments);
+			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
+			System.out.println();
+//			if (formula.equals("C4H7NO3")) {
+//				if (!mol.acontainer.getAtom(0).getSymbol().equals("C")) continue;
+//				if (!mol.acontainer.getAtom(4).getSymbol().equals("N")) continue;
+//			}
+//			break;
+//			}
+
+
+			atomCount = mol.atomCount;
+			return mol;
+		} catch (IOException e) {
+			System.err.println("Could not open "+output+" for writing. Continuting without file output...");
+			wFile = false;
+			e.printStackTrace();
+		} catch (CDKException e) {
+			e.printStackTrace();
+		} catch (CloneNotSupportedException e) {
+			e.printStackTrace();
+		}
+		return null;	// upon unsuccessful initialization
+	}
 
 	private void generateTaskMol(MolHelper2 molecule) {
 		startedTasks.getAndIncrement();
@@ -74,8 +111,6 @@ public class PMG_FixedSizeExecutor{
 	}
 
 	public static void main(String[] args) throws IOException{
-		MolHelper2 mol;
-
 		// parse the command-line arguments
 		String formula = "C4H10";
 		String fragments = null;
@@ -88,69 +123,28 @@ public class PMG_FixedSizeExecutor{
 				formula = args[++i];
 			}
 			else if(args[i].equals("-o")){
-				System.err.println("No output file currently supported in the parallel MG.");
+				out = args[++i];
+				wFile = true;
 			}
 			else if(args[i].equals("-fr")){
 				System.err.println("No fragments currently supported in the parallel MG.");
 			}
 		}
-
-		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
-		/*
-		try {
-			outFile = new BufferedWriter(new FileWriter(output));
-		} catch (IOException e) {
-			e.printStackTrace();
-		}*/
-		// start the process of generating structures
+		
+		// do the real processing
 		long before = System.currentTimeMillis();
-		
-		try {
-			mol = new MolHelper2();
-			
-			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+pmg.executorCount+" threads).");
-			System.out.print("Current atom order is: ");
-//			while (true) {
-			if (fragments == null)
-				pmg.nH = mol.initialize(formula);
-			else 
-				pmg.nH = mol.initialize(formula, fragments);
-			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
-			System.out.println();
-//			if (formula.equals("C4H7NO3")) {
-//				if (!mol.acontainer.getAtom(0).getSymbol().equals("C")) continue;
-//				if (!mol.acontainer.getAtom(4).getSymbol().equals("N")) continue;
-//			}
-//			break;
-//			}
-
-			
-			pmg.atomCount = mol.atomCount;
-			pmg.generateTaskMol(mol);
-		} catch (CDKException e) {
-			e.printStackTrace();
-		} catch (CloneNotSupportedException e) {
-			e.printStackTrace();
-		}
-		/*
-		try {
-			outFile.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		*/
-		System.out.println("molecules " + pmg.getFinalCount());
-
+		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
+		MolHelper2 mol = pmg.initialize(formula, fragments, out);
+		pmg.generateTaskMol(mol);
+		pmg.finish();	// wait for all tasks to finish, and close the output files
+		pmg.shutdown();	// shutdown the executor service(s)
 		long after = System.currentTimeMillis();		
+
+		// Report the number of generated molecules
+		System.out.println("molecules " + pmg.getFinalCount());
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
-		
-		pmg.shutdown();
 	}
 
-	
-	private void shutdown() {
-		executor.shutdown();
-	}
 
 
 	private class Generator implements Runnable {
@@ -169,6 +163,9 @@ public class PMG_FixedSizeExecutor{
 				if (mol.isComplete(satCheck, nH)){
 					if (mol.isConnected()) {
 						mol_counter.incrementAndGet();
+						if(wFile){
+							mol.writeTo(outFile, mol_counter.get());
+						}
 					}	
 				}
 				else{
@@ -207,6 +204,26 @@ public class PMG_FixedSizeExecutor{
 			mol = null;
 		}
 		
+	}
+	
+	private void finish() {
+		while (0 < startedTasks.get()){
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		try {
+			if (wFile) outFile.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void shutdown() {
+		executor.shutdown();
 	}
 
 	public long getFinalCount() {

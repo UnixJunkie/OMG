@@ -1,9 +1,12 @@
 package org.omg;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,8 +28,10 @@ import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IBond.Order;
+import org.openscience.cdk.interfaces.IChemObject;
 import org.openscience.cdk.interfaces.IChemSequence;
 import org.openscience.cdk.io.MDLV2000Reader;
+import org.openscience.cdk.io.MDLV2000Writer;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
@@ -50,6 +55,7 @@ public class MolHelper2 {
 	String canString;
 	
 	int [] rep;
+	private IAtomContainer acprotonate;
 	
 	public MolHelper2() {
 	}
@@ -139,7 +145,7 @@ public class MolHelper2 {
 	 * @throws CDKException
 	 */
 	public boolean isComplete(SaturationChecker satCheck, int nH) throws CloneNotSupportedException, CDKException{
-		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
+		acprotonate = (IAtomContainer) acontainer.clone();
 
 		for (IAtom atom : acprotonate.atoms()) {
 			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
@@ -160,7 +166,24 @@ public class MolHelper2 {
 		return (ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1);
 	}
 	
-	
+	/**
+	 * Must be called only on "complete" molecules, i.e., after a call has been made to isComplete() method.
+	 * @param outFile
+	 * @param mol_counter
+	 * @throws CDKException
+	 */
+	public synchronized void writeTo(BufferedWriter outFile, long mol_counter) throws CDKException{
+		StringWriter writer = new StringWriter();
+		MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
+		try {
+			mdlWriter.write(acprotonate);
+			writer.append("> <Id>\n"+(mol_counter)+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
+			outFile.write(writer.toString());
+		} catch (IOException e) {
+			System.err.println("Could not write molecule to output file.");
+			e.printStackTrace();
+		}
+	}
 	
 	/**
 	 * It checks all possible ways to add one bond to a molecule, while considering the canonical augmentation of the corresponding graph.
@@ -267,25 +290,20 @@ public class MolHelper2 {
 		// Turn the adjacency graph into a string by taking only the lower half.
 		for (int i=0; i<aCount; i++)
 			for (int j=0; j<i; j++){
-				s.append(" "+ar[i][j]);
+				s.append(ar[i][j]);
 			}
 
 		return s.toString();
 	}
 
 	public static int orderNumber(Order o){
-		if (o == null)
-			return 0;
-		if(o == IBond.Order.SINGLE){
-			return 1;
+		if (o == null) return 0;
+		switch (o) {
+			case SINGLE: return 1;
+			case DOUBLE: return 2;
+			case TRIPLE: return 3;
+			default:     return 4;
 		}
-		if(o == IBond.Order.DOUBLE){
-			return 2;
-		}
-		if(o == IBond.Order.TRIPLE){
-			return 3;
-		}
-		return 4;
 	}
 
 	/**

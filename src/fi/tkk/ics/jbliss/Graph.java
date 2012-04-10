@@ -50,7 +50,7 @@ public class Graph {
 	private static final int bondColor = 1000;
 
 	
-	public char[] canonize(char[] atoms, char[] bonds) {
+	public String canonize(char[] atoms, char[] bonds) {
 		// create a bliss instance for calculating the canonical labeling
 		long bliss = create();
 		assert bliss != 0;
@@ -61,12 +61,14 @@ public class Graph {
 			_add_vertex(bliss, colorTable.get(""+atom));
 			atomCount++;
 		}
+		int edges[][] = new int[atomCount][atomCount];
 		int vid=0;
 		// Add each bond as a vertex connected to the adjacent atoms (turning a multi-graph to a simple one)
 		for (int atom0=0; atom0<atomCount; atom0++)
 			for (int atom1=0; atom1<atomCount; atom1++) {
 				char bond = bonds[atom0 * atomCount + atom1];
 				int orderNumber = Integer.parseInt(""+bond);
+				edges[atom0][atom1] = orderNumber;
 				for (; 0<orderNumber; orderNumber--){
 					vid = _add_vertex(bliss, bondColor);
 					_add_edge(bliss, atom0, vid);
@@ -76,14 +78,14 @@ public class Graph {
 		int[] cf = _canonical_labeling(bliss, null); 
 		destroy(bliss);
 
-		int edgeCount=atomCount*atomCount;
-		char canonicalBonds[] = new char[edgeCount];
+		int canonicalBonds[] = new int[atomCount*atomCount];
 		for (int left=0; left<atomCount; left++)
 			for(int right=0; right<atomCount; right++){
-				canonicalBonds[cf[left]*atomCount+cf[right]] = bonds[left*atomCount+right];
+				canonicalBonds[cf[left]*atomCount+cf[right]] = edges[left][right]+edges[right][left];
 			}
-
-		return canonicalBonds;
+		String str = "";
+		for (int n:canonicalBonds) str+=n;
+		return str;
 	}
 
 	
