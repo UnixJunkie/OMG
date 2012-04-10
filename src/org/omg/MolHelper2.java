@@ -52,7 +52,7 @@ import fi.tkk.ics.jbliss.Graph;
 public class MolHelper2 {
 	IAtomContainer acontainer;
 	int atomCount=0;
-	String canString;
+	String canString="";
 	
 	int [] rep;
 	private IAtomContainer acprotonate;
@@ -254,28 +254,42 @@ public class MolHelper2 {
 	}
 
 
-//	
-//	private int[] compose(int[] perm, int[] orbit) {
-//		int[] c = new int [atomCount];
-//		for (int i:orbit) c[i] = perm[orbit[i]];
-//		// make sure the smallest in the class is the representative
-//		for (int i:c) 
-//			if (i < c[i]) {
-//				c[c[i]] = i;
-//				c[i] = i;
-//			} else {
-//				c[i] = c[c[i]];	// it may have changed in the meantime!
-//			}
-//		return c;
-//	}
-//
-//
-//	private int findAtomByID(int id) {
-//		int atom;
-//		for (atom=0; atom<atomCount; atom++)
-//			if (acontainer.getAtom(atom).getID().equals(""+id)) return atom;
-//		return -1;	// not found
-//	}
+	ArrayList<MolHelper2> addOneBondNoCheck() throws CloneNotSupportedException, CDKException{
+    	Set<String> visited = new HashSet<>();
+    	ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
+		
+		int vCount = acontainer.getAtomCount();
+		
+		// Note that the representative of an atom never has a bigger ID
+		for (int left = 0; left < vCount; left++){
+//			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
+			for (int right = left+1; right < vCount; right++){
+//				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
+				// For the first iteration (in inner loop), we may consider the same orbit as "left"
+				
+				int atom1 = (left);
+				int atom2 = (right);
+				
+				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
+				if (!incBond(atom1, atom2, copyMol)) continue;	
+				CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
+				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
+				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
+				if(type1 == null || type2 == null) continue;
+
+				// canonize 
+				Graph graph = new Graph();
+				int[] perm1 = graph.canonize(copyMol, true);	// ask for the automorphisms to be reported back
+				IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
+				int[] orbit = graph.orbitRep;
+				String molString = molString(canExtMol);
+				if (visited.add(molString) == false) continue;	
+
+				extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+			}
+		}
+		return extMolList;
+	}
 
 
 	/**
