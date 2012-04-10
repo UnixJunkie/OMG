@@ -207,9 +207,11 @@ public class PMG_FixedSizeExecutor{
 	}
 	
 	private void finish() {
+		int time = 0;
 		while (0 < startedTasks.get()){
 			try {
 				Thread.sleep(1000);
+				if (60 == time++) System.out.println("Another minute passed and so far the count of molecules = "+mol_counter.get());
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -227,7 +229,6 @@ public class PMG_FixedSizeExecutor{
 	}
 
 	public long getFinalCount() {
-		// TODO make sure the computation is finished before returning the final count
 		while (0 < startedTasks.get()){
 			try {
 				Thread.sleep(1000);
