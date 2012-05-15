@@ -34,45 +34,65 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
  * Open Molecule Generation
  * The main class collecting parameters and setting global objects
  * 
- * @author julio
+ * @author Julio Peironcely
  */
 public class OMG{
-	/**Output File containing the list of graph. */
 	BufferedWriter outFile;
 	HashMap<String, Byte> globalmap;
 	int mol_counter;
 	private int nH;
 	private static boolean wfile = false;
+	private static String fragments = null;
 	private SaturationChecker satCheck;
 	public static void main(String[] args) throws IOException{
 
 		OMG gen = new OMG();
-		String formula = "C4H10";
-		String fragments = null;
+		String formula = null;
 		String out = "default_out.sdf";
-
-
-		for(int i = 0; i < args.length; i++){
-			if(args[i].equals("-mf")){
-				formula = args[i+1];
-			}
-			else if(args[i].equals("-o")){
-				out = args[i+1];
-				wfile = true;
-			}
-			else if(args[i].equals("-fr")){
-				fragments = args[i+1];
+		
+		if (args.length > 0) {
+			for(int i = 0; i < args.length; i++){
+				if(args[i].equals("-ec")){
+					try {
+						formula = args[i+1];
+				    } catch (Exception e) {
+				        System.err.println("No formula provided");
+				        System.exit(1);
+				    }
+				}
+				else if(args[i].equals("-o")){
+					try {
+						out = args[i+1];
+						wfile = true;
+				    } catch (Exception e) {
+				        System.err.println("No output file provided");
+				        System.exit(1);
+				    }						
+				}
+				else if(args[i].equals("-fr")){
+					try {
+						fragments = args[i+1];
+				    } catch (Exception e) {
+				        System.err.println("No file with prescribed substructures provided");
+				        System.exit(1);
+				    }					
+				}
 			}
 		}
-		try {
-			gen.initializeMolecule(formula,fragments, out);
-		} catch (CDKException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (CloneNotSupportedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+
+		
+
+			try {
+				gen.initializeMolecule(formula,fragments, out);
+			} catch (CDKException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (CloneNotSupportedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+
 
 	}
 	public OMG(){
@@ -102,6 +122,10 @@ public class OMG{
 		for(IAtom atom: listcont){
 			acontainer.removeAtom(atom);
 		}
+		
+
+		for(IAtom atom: acontainer.atoms()) System.out.print(atom.getSymbol());
+		System.out.println();
 		if(fragments != null){
 			InputStream ins = new BufferedInputStream(new FileInputStream(fragments));
 			MDLV2000Reader reader = new MDLV2000Reader(ins);
@@ -177,10 +201,9 @@ public class OMG{
 			AtomTypeManipulator.configure(atom, type);
 		}
 		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-		hAdder.addImplicitHydrogens(acprotonate);
-		if(satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH)){
-			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
+		hAdder.addImplicitHydrogens(acprotonate);		if((ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1) && (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH))){
 
+			if(fragments != null){
 				if(!globalmap.containsKey(canstr2)){
 					globalmap.put(canstr2, null);
 					if(wfile){
@@ -192,7 +215,18 @@ public class OMG{
 					}
 					mol_counter++;
 				}
-			}	
+			}else{
+				if(wfile){
+					StringWriter writer = new StringWriter();
+					MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
+					mdlWriter.write(acprotonate);
+					outFile.write(writer.toString());
+					outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
+				}
+				mol_counter++;
+			}
+				
+
 
 			hAdder = null;
 			acprotonate = null;
@@ -200,8 +234,13 @@ public class OMG{
 			return;
 		}
 		else{
+			ArrayList<int[]> extBondlist = null;
+			if(fragments != null){
+				extBondlist = MolManipulator.extendMolFrag(acontainer);
+			}else{
 
-			ArrayList<int[]> extBondlist = MolManipulator.extendMol(acontainer);
+				extBondlist = MolManipulator.extendMol(acontainer);
+			}
 
 			HashMap<String, Byte> map = new HashMap<String, Byte>();
 			
@@ -239,8 +278,8 @@ public class OMG{
 						i++;
 						lastBondID[0] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(0).getID();
 						lastBondID[1] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(1).getID();
-						//					we remove select the last bond if it was not in the fragment, or if it was in the fragment
-						//					but its desgree augmented
+						//					we remove the last bond if it was not in the fragment, or if it was in the fragment
+						//					but its degree augmented
 						bondAdd = canonM_ext.getBond(canonM_ext.getBondCount()-i);
 						if(!(bondAdd.getProperty("BondINfrag")!= null)){
 							lastNotInFrag = true;
@@ -279,12 +318,12 @@ public class OMG{
 					else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
 						bondAdd.setOrder(IBond.Order.TRIPLE);
 					}
-
+					
 					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
 
 						m_ext = null;
 						bondAdd = null;
-
+						
 						generateMol(canonM_ext, canstr);	
 					}	
 				}

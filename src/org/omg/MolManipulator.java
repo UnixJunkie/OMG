@@ -10,6 +10,7 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.tools.CDKHydrogenAdder;
 
 
 public class MolManipulator {
@@ -257,8 +258,8 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
 				continue;
 			}
-
-			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(acCloned.getBuilder());
+		
+			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(acCloned.getBuilder());			
 			IAtomType type1 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(i));
 		    IAtomType type2 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(j));
 
@@ -270,7 +271,46 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 		}			  
 	return bondList;
 }
+public static  ArrayList<int[]> extendMolFrag(IAtomContainer ac) throws CloneNotSupportedException, CDKException {
+	int vCount = ac.getAtomCount();
 
+	ArrayList<int[]> bondList = new ArrayList<int[]>();		
+	
+	for (int i = 0; i < vCount; i++){
+		for (int j = i+1; j < vCount; j++){
+			IBond bond = ac.getBond(ac.getAtom(i), ac.getAtom(j));
+			IAtomContainer acCloned = (IAtomContainer) ac.clone();
+			if(bond == null){					
+				acCloned.addBond(i, j, IBond.Order.SINGLE);
+			}
+			else if(bond.getOrder() == IBond.Order.SINGLE){
+				acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).setOrder(IBond.Order.DOUBLE);
+			}
+			else if(bond.getOrder() == IBond.Order.DOUBLE){
+				acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).setOrder(IBond.Order.TRIPLE);
+			}
+			else if(bond.getOrder() == IBond.Order.TRIPLE){
+				acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).setOrder(IBond.Order.QUADRUPLE);
+			}
+			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
+				continue;
+			}
+		
+			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(acCloned.getBuilder());			
+			IAtomType type1 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(i));
+		    IAtomType type2 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(j));
+
+		    if((type1 != null) && (type2 != null)){
+		    	if(!(acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).getProperty("BondINfrag")!= null)){
+			
+				
+					bondList.add(new int[] { i, j});
+				}
+		    }
+			}		   			   
+		}			  
+	return bondList;
+}
 	public static boolean aresame(IAtomContainer ac1, IAtomContainer ac2) {
 		return Arrays.equals(mol2array(ac1),mol2array(ac2));
 	}
@@ -365,7 +405,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 			lastBondID[1] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(1).getID();
 			IBond bondcheck = canonM_ext.getBond(canonM_ext.getBondCount()-i);
 //			we remove select the last bond if it was not in the fragment, or if it was in the fragment
-//			but its desgree augmented
+//			but its degree augmented
 			if(bondcheck.getProperty("BondINfrag")== null){
 				lastNotInFrag = true;
 			} 
@@ -383,7 +423,6 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 			}	
 			i++;
 		}
-		/*Graph g_ext_e is G'-e'*/
 		IAtomContainer m_ext_e = (IAtomContainer) m_ext.clone();
 		int[] lastBond = new int[2];
 		for(IAtom atom : m_ext_e.atoms()){
