@@ -21,11 +21,11 @@ public class OMGJNI {
 
 		    } else if (osName.contains("mac")) {
 		    	if(osBits.equals("64")){
-					inputStream = OMGJNI.class.getResource("libnautygetcanMac64.so").openStream();
-					temporarySO = File.createTempFile("libnautygetcanMac64", ".so");
+					inputStream = OMGJNI.class.getResource("libnautygetcanMac64.jnilib").openStream();
+					temporarySO = File.createTempFile("libnautygetcanMac64", ".jnilib");
 				}else if(osBits.equals("32")){
-					inputStream = OMGJNI.class.getResource("libnautygetcanMac32.so").openStream();
-					temporarySO = File.createTempFile("libnautygetcanMac32", ".so");
+					inputStream = OMGJNI.class.getResource("libnautygetcanMac32.jnilib").openStream();
+					temporarySO = File.createTempFile("libnautygetcanMac32", ".jnilib");
 				}
 		    }else if (osName.contains("linux")){
 		    	if(osBits.equals("64")){
