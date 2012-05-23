@@ -5,7 +5,7 @@ doc/License-gpl-3.txt
 
 1. Introduction
 ----------------------------------------------------------------------------------
-You are currently reading the README file for theOMG Project.This project is
+You are currently reading the README file for the OMG Project. This project is
 hosted under http://sourceforge.net/p/openmg
 
 OMG is an open-source tool for the generation of chemical structures, implemented 
@@ -20,7 +20,15 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FO
 A PARTICULAR PURPOSE.
 
 
-2. Using OMG tool
+2. System Requirements
+----------------------------------------------------------------------------------
+OMG.jar runs in the following OS;
+- Ubuntu 32 bits
+- Ubuntu 64 bits
+- Mac OS X 64 bits
+
+
+3. Using OMG tool
 ----------------------------------------------------------------------------------
 In order to use the OMG tool in your program, you need to run the jar file via 
 command line and provide some arguments. 
