@@ -11,5 +11,5 @@ mv org_omg_OMGJNI.h org/omg/org_omg_OMGJNI.h
 cd org
 cd omg
 
-gcc -fPIC -o libnautygetcan.so -shared -I/usr/lib/jvm/java-6-openjdk/include -I/usr/lib/jvm/java-6-openjdk/include/linux nautygetcan.c nauty.c nautil.c naututil.c naugraph.c rng.c 
+gcc -o libnautygetcanLinux32.so -shared -I/usr/lib/jvm/java-6-openjdk/include -I/usr/lib/jvm/java-6-openjdk/include/linux nautygetcan.c nauty.c nautil.c naututil.c naugraph.c rng.c 
 

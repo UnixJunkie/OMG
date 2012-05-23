@@ -10,10 +10,33 @@ import java.io.InputStream;
 public class OMGJNI {
 	static {    
 		// Get input stream from jar resource
-	     InputStream inputStream;
+	     InputStream inputStream = null;
+	     File temporarySO = null;
 		try {
-			inputStream = OMGJNI.class.getResource("libnautygetcan.so").openStream();
-			File temporarySO = File.createTempFile("libnautygetcan", ".so");
+			String OS = System.getProperty("os.name");
+			
+			String osName = System.getProperty("os.name").toLowerCase();
+			String osBits = System.getProperty("sun.arch.data.model");
+		    if (osName.contains("windows")) {
+
+		    } else if (osName.contains("mac")) {
+		    	if(osBits.equals("64")){
+					inputStream = OMGJNI.class.getResource("libnautygetcanMac64.so").openStream();
+					temporarySO = File.createTempFile("libnautygetcanMac64", ".so");
+				}else if(osBits.equals("32")){
+					inputStream = OMGJNI.class.getResource("libnautygetcanMac32.so").openStream();
+					temporarySO = File.createTempFile("libnautygetcanMac32", ".so");
+				}
+		    }else if (osName.contains("linux")){
+		    	if(osBits.equals("64")){
+					inputStream = OMGJNI.class.getResource("libnautygetcanLinux64.so").openStream();
+					temporarySO = File.createTempFile("libnautygetcanLinux64", ".so");
+				}else if(osBits.equals("32")){
+					inputStream = OMGJNI.class.getResource("libnautygetcanLinux32.so").openStream();
+					temporarySO = File.createTempFile("libnautygetcanLinux32", ".so");
+				}
+		    }
+			
 		     FileOutputStream outputStream = new FileOutputStream(temporarySO);
 		     byte[] array = new byte[8192];
 		     int read = 0;

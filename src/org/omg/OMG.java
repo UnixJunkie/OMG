@@ -103,7 +103,6 @@ public class OMG{
 
 		IAtomContainer acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
-
 		nH = 0;
 		List<IAtom> listcont = new ArrayList<IAtom>();
 		int atom_counter = 0;
