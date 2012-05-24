@@ -51,7 +51,32 @@ public class OMG{
 		String out = "default_out.sdf";
 		
 		if (args.length > 0) {
+			
 			for(int i = 0; i < args.length; i++){
+				if(args[i].equals("-h")){
+					System.out.println("OMG generates chemical structures");
+					System.out.println("");
+					System.out.println("Usage: java -jar OMG.jar -ec <elemental_composition> [-o <out_file.sdf>, -fr <in_fragments.sdf>]");
+					System.out.println("");
+					System.out.println("Required Parameters");
+					System.out.println("-ec:  elemental composition of the molecules to be generated.");
+					System.out.println("");
+					System.out.println("Optional Parameters");
+					System.out.println("-o:   SDF file where to store the molecules. ");
+					System.out.println("-fr:  SDF file containing prescribed one or multiple substructures. In the case");
+					System.out.println("         of multiple substructures, they have to be non-overlapping. ");
+					System.out.println("");
+					System.out.println("");
+					System.out.println("Examples:");
+					System.out.println("java -jar OMG.jar -ec C6H6");
+					System.out.println("");
+					System.out.println("java -jar OMG.jar -ec C6H6 -o out_C6H6.sdf");
+					System.out.println("");
+					System.out.println("java -jar OMG.jar -ec C2H5NO2 -fr fragment_CO2.sdf");
+					System.out.println("");
+
+					System.exit(1);
+				}
 				if(args[i].equals("-ec")){
 					try {
 						formula = args[i+1];
@@ -78,6 +103,10 @@ public class OMG{
 				    }					
 				}
 			}
+		}
+		else{
+			System.err.println("Provide at least an elemental composition. Type OMG.jar -h for help");
+			System.exit(1);
 		}
 
 		
