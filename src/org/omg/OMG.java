@@ -197,10 +197,10 @@ public class OMG{
 		}
 		if(isComplete){
 			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
-					mol_counter++;
 
 					// Not needed if we know there are no duplicates, e.g., when no initial fragmemts are given
 				if(!globalmap.containsKey(canstr2)){
+					mol_counter++;
 					globalmap.put(canstr2, null);
 					if(wfile){
 						StringWriter writer = new StringWriter();

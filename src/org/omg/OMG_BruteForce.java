@@ -171,20 +171,29 @@ public class OMG_BruteForce{
 		 * is the same as the hydrogens in the original formula*/
 		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
 		
-		for (IAtom atom : acprotonate.atoms()) {
-			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
-			
-			AtomTypeManipulator.configure(atom, type);
+		boolean isComplete ;
+		CDKHydrogenAdder hAdder;
+		try {
+			for (IAtom atom : acprotonate.atoms()) {
+				IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
+
+				AtomTypeManipulator.configure(atom, type);
+			}
+			hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+			isComplete = satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
+		} catch (IllegalArgumentException iae){
+			isComplete = false;
+//			System.err.println("incomplete at: "+mol_counter);
 		}
-		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-		hAdder.addImplicitHydrogens(acprotonate);
-		if(satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH)){
+		if(isComplete){
 			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
 
 					// Not needed if we know there are no duplicates, e.g., when no initial fragments are given
 				if(!globalmap.containsKey(canstr2)){
 					globalmap.put(canstr2, null);
 					mol_counter++;
+					System.out.println(mol_counter);
 					if(wfile){
 						StringWriter writer = new StringWriter();
 						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
@@ -232,10 +241,10 @@ public class OMG_BruteForce{
 			        
 					String canstr =  MolManipulator.array2string(MolManipulator.mol2array(canonM_ext));
 	
-					if(!map.containsKey(canstr)){
-						map.put(canstr, null);				
+//					if(!map.containsKey(canstr)){
+//						map.put(canstr, null);				
 						generateMol(canonM_ext, canstr);	
-					}
+//					}
 				}
 			}		
 			return;				
