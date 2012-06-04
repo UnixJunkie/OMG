@@ -54,11 +54,11 @@ public class PMG_ParallelExecutor{
 	private SaturationChecker satCheck = new SaturationChecker();
 	private int atomCount;
 
+	AtomicLong startedTasks;
 	private static int executorCount=6;
 	ThreadPoolExecutor executor[];
 	private boolean parallelExecution[]; 
 	LinkedBlockingQueue<Runnable> taskQueue[];
-	AtomicLong startedTasks;
 	private final static int MAX_PARALLEL = 100;	// stop parallel tasks
 	private final static int MIN_PARALLEL = 10;		// restart parallel tasks
 
