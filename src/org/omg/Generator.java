@@ -8,10 +8,10 @@ class Generator implements Runnable {
 		/**
 		 * 
 		 */
-		private final PMG_FixedSizeExecutor pmg;
+		private final PMG pmg;
 		MolHelper2 mol;
 		
-		public Generator(PMG_FixedSizeExecutor pmg_FixedSizeExecutor, MolHelper2 mol) {
+		public Generator(PMG pmg_FixedSizeExecutor, MolHelper2 mol) {
 			super();
 			pmg = pmg_FixedSizeExecutor;
 			this.mol = mol;
@@ -26,7 +26,7 @@ class Generator implements Runnable {
 					if (mol.isConnected()) {
 //						if (!molSet.add(mol.canString)) System.err.println("Duplicate");
 						pmg.mol_counter.incrementAndGet();
-						if(PMG_FixedSizeExecutor.wFile){
+						if(PMG.wFile){
 							mol.writeTo(pmg.outFile, pmg.mol_counter.get());
 						}
 					}	

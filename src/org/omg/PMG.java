@@ -8,10 +8,19 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
@@ -39,115 +48,149 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
  */
 public class PMG{
 	/**Output File containing the list of graph. */
-//	BufferedWriter outFile;
+	BufferedWriter outFile;
 
-	AtomicInteger mol_counter;
-	private SaturationChecker satCheck = new SaturationChecker();
+	AtomicLong mol_counter;
+	SaturationChecker satCheck = new SaturationChecker();
+	private int atomCount;
+	boolean parallelExecution = true;
 
-	private int nH;
-//	private static boolean wfile = false;
-	
+	static int executorCount=6;
+	AtomicLong startedTasks;
+	MultiCoreExecutor executor;
+
+	int nH;
+	static boolean wFile = false;
+
+	// TODO: This is only for checking duplicates. This should be unnecessary in a good version.
+	private Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
+
 	public PMG(){
-		mol_counter = new AtomicInteger(0);
+		mol_counter = new AtomicLong(0);
+		startedTasks = new AtomicLong(0);
 	}
 	
-	public static void main(String[] args) throws IOException{
-
-		// parse the command-line arguments
-		String formula = "C4H10";
-		String fragments = null;
-		String out = "default_out.sdf";
-		
-		for(int i = 0; i < args.length; i++){
-			if(args[i].equals("-mf")){
-				formula = args[i+1];
-			}
-			else if(args[i].equals("-o")){
-				System.err.println("No output file currently supported in the parallel MG.");
-			}
-			else if(args[i].equals("-fr")){
-				System.err.println("No fragments currently supported in the parallel MG.");
-			}
-		}
-
-//		try {
-//		outFile = new BufferedWriter(new FileWriter(output));
-//	} catch (IOException e) {
-//		// TODO Auto-generated catch block
-//		e.printStackTrace();
-//	}
-		
-		// start the process of generating structures
-		long before = System.currentTimeMillis();
-		System.out.println(formula);
-		
-		MolHelper mol;
-		PMG gen = new PMG();
+	boolean generateParallelTask(MolHelper2 molecule) {
+		startedTasks.getAndIncrement();
 		try {
-			mol = new MolHelper();
+			executor.execute(new Generator(this, molecule));
+			return true;
+		} catch (RejectedExecutionException e) {	// if it failed to execute in parallel (due to overload), then continue sequentially
+			return false;
+		}
+	}
+
+	private MolHelper2 initialize(String formula, String fragments, String output) {
+		MolHelper2 mol;
+		try {
+			if (wFile) outFile = new BufferedWriter(new FileWriter(output));
+
+			mol = new MolHelper2();
+
+			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+executorCount+" threads).");
+			System.out.print("Current atom order is: ");
+//			while (true) {
 			if (fragments == null)
-				gen.nH = mol.initialize(formula);
+				nH = mol.initialize(formula);
 			else 
-				gen.nH = mol.initialize(formula, fragments);
-			
-			gen.generateMol(mol);
+				nH = mol.initialize(formula, fragments);
+			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
+			System.out.println();
+//			if (formula.equals("C4H7NO3")) {
+//				if (!mol.acontainer.getAtom(0).getSymbol().equals("C")) continue;
+//				if (!mol.acontainer.getAtom(4).getSymbol().equals("N")) continue;
+//			}
+//			break;
+//			}
+
+
+			atomCount = mol.atomCount;
+			return mol;
+		} catch (IOException e) {
+			System.err.println("Could not open "+output+" for writing. Continuting without file output...");
+			wFile = false;
+			e.printStackTrace();
 		} catch (CDKException e) {
 			e.printStackTrace();
 		} catch (CloneNotSupportedException e) {
 			e.printStackTrace();
 		}
-		
-//	try {
-//		outFile.close();
-//	} catch (IOException e) {
-//		// TODO Auto-generated catch block
-//		e.printStackTrace();
-//	}
-		
-		System.out.println("molecules " + gen.getFinalCount());
+		return null;	// upon unsuccessful initialization
+	}
 
+	public static void main(String[] args) throws IOException{
+		// parse the command-line arguments
+		String formula = "C4H10";
+		String fragments = null;
+		String out = "default_out.sdf";
+		for(int i = 0; i < args.length; i++){
+			if(args[i].equals("-p")){
+				executorCount = Integer.parseInt(args[++i]);
+			}
+			else if(args[i].equals("-mf")){
+				formula = args[++i];
+			}
+			else if(args[i].equals("-o")){
+				out = args[++i];
+				wFile = true;
+			}
+			else if(args[i].equals("-fr")){
+				System.err.println("No fragments currently supported in the parallel MG.");
+			}
+		}
+		
+		PMG pmg = new PMG();
+		// TODO
+		pmg.executor = new MultiExecutor(executorCount);
+		MolHelper2 mol = pmg.initialize(formula, fragments, out);
+		
+		// do the real processing
+		long before = System.currentTimeMillis();
+		pmg.generateParallelTask(mol);
+		pmg.wait2Finish();	// wait for all tasks to finish, and close the output files
+		pmg.shutdown();	// shutdown the executor service(s)
 		long after = System.currentTimeMillis();		
+
+		// Report the number of generated molecules
+		System.out.println("molecules " + pmg.getFinalCount());
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
 	}
 
 
 
-	void generateMol(MolHelper mol) throws CloneNotSupportedException, CDKException, IOException {
-		/*We check that the atoms are connected in the same molecules
-		 * this is, they are not separated fragments*/
-		/*We add hydrogens in order to check if the molecule is saturated.
-		 * We will accept the molecule if the number of hydrogens necessary to saturate 
-		 * is the same as the hydrogens in the original formula*/
-
-		if (mol.isComplete(satCheck, nH)){
-			if (mol.isConnected()) {
-				mol_counter.incrementAndGet();
-//					if(wfile){
-//						StringWriter writer = new StringWriter();
-//						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-//						mdlWriter.write(acprotonate);
-//						outFile.write(writer.toString());
-//						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
-//					}
-			}	
-//			return;
-		}
-		else{
-			// get all possible ways to add one bond to the molecule
-			ArrayList<MolHelper> extMolList = mol.addOneBond();
-			
-			// recursively process all extended molecules
-			for (MolHelper  molecule : extMolList) {
-				generateMol(molecule);	
+	private void wait2Finish() {
+		int time = 0, min = 0;
+		while (0 < startedTasks.get()){
+			try {
+				Thread.sleep(1000);
+				if (60 == time++) {
+					time = 0;
+					System.out.println("Almost "+ ++min +" minute(s) passed and so far the count of molecules = "+mol_counter.get());
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
-//			return;				
 		}
-
+		
+		try {
+			if (wFile) outFile.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
+	private void shutdown() {
+		executor.shutdown();
+	}
 
-	public int getFinalCount() {
-		// TODO make sure the computation is finished before returning the final count
+	public long getFinalCount() {
+		while (0 < startedTasks.get()){
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
 		return mol_counter.get();
 	}
 }
