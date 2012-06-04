@@ -8,7 +8,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,17 +51,16 @@ public class PMG_FixedSizeExecutor{
 	BufferedWriter outFile;
 
 	AtomicLong mol_counter;
-	private SaturationChecker satCheck = new SaturationChecker();
+	SaturationChecker satCheck = new SaturationChecker();
 	private int atomCount;
-	private boolean parallelExecution = true;
+	boolean parallelExecution = true;
 
-	private static int executorCount=6;
-	ThreadPoolExecutor executor;
-	LinkedBlockingQueue<Runnable> taskQueue;
+	static int executorCount=6;
 	AtomicLong startedTasks;
+	MultiCoreExecutor executor;
 
-	private int nH;
-	private static boolean wFile = false;
+	int nH;
+	static boolean wFile = false;
 
 	// TODO: This is only for checking duplicates. This should be unnecessary in a good version.
 	private Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
@@ -69,8 +68,16 @@ public class PMG_FixedSizeExecutor{
 	public PMG_FixedSizeExecutor(){
 		mol_counter = new AtomicLong(0);
 		startedTasks = new AtomicLong(0);
-		taskQueue = new LinkedBlockingQueue<Runnable>();
-		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
+	}
+	
+	boolean generateParallelTask(MolHelper2 molecule) {
+		startedTasks.getAndIncrement();
+		try {
+			executor.execute(new Generator(this, molecule));
+			return true;
+		} catch (RejectedExecutionException e) {	// if it failed to execute in parallel (due to overload), then continue sequentially
+			return false;
+		}
 	}
 
 	private MolHelper2 initialize(String formula, String fragments, String output) {
@@ -111,11 +118,6 @@ public class PMG_FixedSizeExecutor{
 		return null;	// upon unsuccessful initialization
 	}
 
-	private void generateTaskMol(MolHelper2 molecule) {
-		startedTasks.getAndIncrement();
-		executor.execute(new Generator(molecule));
-	}
-
 	public static void main(String[] args) throws IOException{
 		// parse the command-line arguments
 		String formula = "C4H10";
@@ -125,7 +127,7 @@ public class PMG_FixedSizeExecutor{
 			if(args[i].equals("-p")){
 				executorCount = Integer.parseInt(args[++i]);
 			}
-			if(args[i].equals("-mf")){
+			else if(args[i].equals("-mf")){
 				formula = args[++i];
 			}
 			else if(args[i].equals("-o")){
@@ -137,12 +139,15 @@ public class PMG_FixedSizeExecutor{
 			}
 		}
 		
+		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
+		// TODO
+		pmg.executor = new MultiExecutor(executorCount);
+		MolHelper2 mol = pmg.initialize(formula, fragments, out);
+		
 		// do the real processing
 		long before = System.currentTimeMillis();
-		PMG_FixedSizeExecutor pmg = new PMG_FixedSizeExecutor();
-		MolHelper2 mol = pmg.initialize(formula, fragments, out);
-		pmg.generateTaskMol(mol);
-		pmg.finish();	// wait for all tasks to finish, and close the output files
+		pmg.generateParallelTask(mol);
+		pmg.wait2Finish();	// wait for all tasks to finish, and close the output files
 		pmg.shutdown();	// shutdown the executor service(s)
 		long after = System.currentTimeMillis();		
 
@@ -153,74 +158,14 @@ public class PMG_FixedSizeExecutor{
 
 
 
-	private class Generator implements Runnable {
-		MolHelper2 mol;
-		
-		public Generator(MolHelper2 mol) {
-			super();
-			this.mol = mol;
-		}
-
-		@Override
-		public void run() {
-			try {
-//				if (depth == atomCount) 
-//					return;
-				if (mol.isComplete(satCheck, nH)){
-					if (mol.isConnected()) {
-//						if (!molSet.add(mol.canString)) System.err.println("Duplicate");
-						mol_counter.incrementAndGet();
-						if(wFile){
-							mol.writeTo(outFile, mol_counter.get());
-						}
-					}	
-				}
-				else{
-					// get all possible ways to add one bond to the molecule
-					ArrayList<MolHelper2> extMolList = mol.addOneBond();
-					
-					// recursively process all extended molecules
-					if (parallelExecution)
-					{	// make a parallel call
-						if (taskQueue.size() > executorCount*100) {
-							parallelExecution = false;
-							System.out.println("Disabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
-						}
-						for (MolHelper2  molecule : extMolList) {
-							generateTaskMol(molecule);
-						}
-					} else
-					{ // do a recursive call on the same thread 
-						if (taskQueue.size() < executorCount*2){
-							parallelExecution = true;
-							System.out.println("Enabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
-						}
-						for (MolHelper2  molecule : extMolList) {
-							mol = molecule;
-							startedTasks.incrementAndGet();
-							run();
-						}
-					}
-				}
-			} catch (CloneNotSupportedException e){
-				e.printStackTrace();
-			} catch (CDKException e) {
-				e.printStackTrace();
-			}
-			startedTasks.decrementAndGet();
-			mol = null;
-		}
-		
-	}
-	
-	private void finish() {
-		int time = 0;
+	private void wait2Finish() {
+		int time = 0, min = 0;
 		while (0 < startedTasks.get()){
 			try {
 				Thread.sleep(1000);
 				if (60 == time++) {
 					time = 0;
-					System.out.println("Another minute passed and so far the count of molecules = "+mol_counter.get());
+					System.out.println("Almost "+ ++min +" minute(s) passed and so far the count of molecules = "+mol_counter.get());
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
