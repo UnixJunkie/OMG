@@ -234,7 +234,7 @@ public class MolHelper2 {
 		StringWriter writer = new StringWriter();
 		writer.write("\n  PMG\n\n  "+acontainer.getAtomCount()+"  "+acontainer.getBondCount()+"  0  0  0  0  0  0  0  0999 V2000\n");
 		for (IAtom atom : acontainer.atoms()) {
-			writer.write("    0.0000    0.0000    0.0000 "+atom.getSymbol()+"   0  0  0  0  0  0  0  0  0  0  0  0\n");
+			writer.write("    0.0000    0.0000    0.0000 "+atom.getSymbol()+"  0  0  0  0  0  0  0  0  0  0  0  0\n");
 		}
 		for (IBond bond : acontainer.bonds()){
 			writer.write("  "+(acontainer.getAtomNumber(bond.getAtom(0))+1)+"  "+(acontainer.getAtomNumber(bond.getAtom(1))+1)+"  "+orderNumber(bond.getOrder())+"  0  0  0  0 \n");
@@ -427,7 +427,8 @@ public class MolHelper2 {
 			bondAdd.setOrder(IBond.Order.TRIPLE);
 		}
 		else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
-			bondAdd.setOrder(IBond.Order.QUADRUPLE);					
+			return false;	// disallow quadruple bonds!
+//			bondAdd.setOrder(IBond.Order.QUADRUPLE);					
 		} 
 		else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
 			return false;
