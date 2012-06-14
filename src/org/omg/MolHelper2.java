@@ -232,12 +232,12 @@ public class MolHelper2 {
 	
 	public synchronized void writeMol(BufferedWriter outFile, long mol_counter) {
 		StringWriter writer = new StringWriter();
-		writer.write("\n  PMG\n\n  "+acontainer.getAtomCount()+"  "+acontainer.getBondCount()+"  0  0  0  0  0  0  0  0999 V2000\n");
+		writer.write(String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",acontainer.getAtomCount(), acontainer.getBondCount()));
 		for (IAtom atom : acontainer.atoms()) {
-			writer.write("    0.0000    0.0000    0.0000 "+atom.getSymbol()+"  0  0  0  0  0  0  0  0  0  0  0  0\n");
+			writer.write(String.format("    0.0000    0.0000    0.0000 %-3s 0  0  0  0  0  0%n", atom.getSymbol()));
 		}
 		for (IBond bond : acontainer.bonds()){
-			writer.write("  "+(acontainer.getAtomNumber(bond.getAtom(0))+1)+"  "+(acontainer.getAtomNumber(bond.getAtom(1))+1)+"  "+orderNumber(bond.getOrder())+"  0  0  0  0 \n");
+			writer.write(String.format("%3d%3d%3d%3d%3d%3d%n",acontainer.getAtomNumber(bond.getAtom(0))+1, (acontainer.getAtomNumber(bond.getAtom(1))+1), orderNumber(bond.getOrder()), 0, 0, 0));
 		}
 		writer.write("M  END\n> <Id>\n"+mol_counter+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
 		try {
