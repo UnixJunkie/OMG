@@ -57,7 +57,7 @@ public class MolHelper2 {
 	IAtomContainer acontainer;
 	int atomCount=0;
 	String canString="";
-	private static Map<String, Double> valenceTable; 
+	private static Map<String, List<Integer>> valenceTable; 
 //	private static GeneratorAtomTypeMatcher matcher;
 
 	
@@ -177,15 +177,39 @@ public class MolHelper2 {
 		}
 	}
 	
+
+	private int openings = 0;
+	private boolean addOpenings(Iterator<IAtom> atomIter, int nH) {
+		if (atomIter.hasNext()) {
+			IAtom atom = atomIter.next();
+			String symbol = atom.getSymbol();
+			int bondSum = 0;
+			for (IBond b:acontainer.getConnectedBondsList(atom))
+				bondSum += b.getOrder().ordinal()+1;
+			for (Integer valence:valenceTable.get(symbol)) {
+				if (valence >= bondSum) {
+					openings += (valence - bondSum);
+					if (openings > nH) {
+						openings -= (valence - bondSum);
+						return false;
+					}
+					if (addOpenings(atomIter, nH)) {
+						/**/
+//						if (valence == 3) System.out.println(acontainer);
+						/**/
+						return true;
+					}
+					openings -= (valence - bondSum);
+				}
+			}
+		} else {
+			return openings == nH;
+		}
+		return false;
+	}
+	
 	public boolean isComplete(int nH) {
-		int totalCapacity = 0, usedCapacity = 0;
-		for (IAtom at : acontainer.atoms()) {
-			totalCapacity += valenceTable.get(at.getSymbol());
-		}
-		for (IBond b:acontainer.bonds()) {
-			usedCapacity += orderNumber(b.getOrder())*2;
-		}
-		return nH == totalCapacity - usedCapacity;
+		return addOpenings (acontainer.atoms().iterator(), nH);
 	}
 	
 	
@@ -266,10 +290,10 @@ public class MolHelper2 {
 		
 		// Note that the representative of an atom never has a bigger ID
 		for (int left = 0; left < vCount; left++){
-			if (valenceTable.get(acontainer.getAtom(left).getSymbol()) == bondCounts[left]) continue;
+			if (valenceTable.get(acontainer.getAtom(left).getSymbol()).get(0) == bondCounts[left]) continue;
 //			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
 			for (int right = left+1; right < vCount; right++){
-				if (valenceTable.get(acontainer.getAtom(right).getSymbol()) == bondCounts[right]) continue;
+				if (valenceTable.get(acontainer.getAtom(right).getSymbol()).get(0) == bondCounts[right]) continue;
 //				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
@@ -464,10 +488,10 @@ public class MolHelper2 {
 		// initialize the table
 		valenceTable = new HashMap<>();
 		// TODO: read atom symbols from CDK
-		valenceTable.put("C", new Double(4));
-		valenceTable.put("N", new Double(5));	// TODO: implement multiple numbers
-		valenceTable.put("O", new Double(2));
-		valenceTable.put("S", new Double(6));
-		valenceTable.put("P", new Double(5));
+		valenceTable.put("C", Arrays.asList(4) );
+		valenceTable.put("N", Arrays.asList(5,3));	// Remember to put the biggest number first!
+		valenceTable.put("O", Arrays.asList(2));
+		valenceTable.put("S", Arrays.asList(6,4,2));
+		valenceTable.put("P", Arrays.asList(5,3));
 	}
 }
