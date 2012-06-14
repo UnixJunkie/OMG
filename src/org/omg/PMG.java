@@ -71,7 +71,6 @@ public class PMG{
 	}
 	
 	boolean generateParallelTask(MolHelper2 molecule) {
-		startedTasks.getAndIncrement();
 		try {
 			executor.execute(new Generator(this, molecule));
 			return true;
@@ -102,8 +101,6 @@ public class PMG{
 //			}
 //			break;
 //			}
-
-
 			atomCount = mol.atomCount;
 			return mol;
 		} catch (IOException e) {
@@ -120,7 +117,7 @@ public class PMG{
 
 	public static void main(String[] args) throws IOException{
 		// parse the command-line arguments
-		String formula = "C4H10";
+		String formula = null;
 		String fragments = null;
 		String out = "default_out.sdf";
 		for(int i = 0; i < args.length; i++){
@@ -139,13 +136,20 @@ public class PMG{
 			}
 		}
 		
+		if (formula == null) {
+			help();
+			System.exit(0);
+		}
+		
 		PMG pmg = new PMG();
-		// TODO
+		// TODO: Enable using MultiExecutor
+//		pmg.executor = new SingleExecutor(executorCount);
 		pmg.executor = new MultiExecutor(executorCount);
 		MolHelper2 mol = pmg.initialize(formula, fragments, out);
 		
 		// do the real processing
 		long before = System.currentTimeMillis();
+		pmg.startedTasks.getAndIncrement();
 		pmg.generateParallelTask(mol);
 		pmg.wait2Finish();	// wait for all tasks to finish, and close the output files
 		pmg.shutdown();	// shutdown the executor service(s)
@@ -157,6 +161,15 @@ public class PMG{
 	}
 
 
+
+	private static void help() {
+		// TODO Auto-generated method stub
+		System.out.println("You can use the following options.");
+		System.out.println("Specifying a formula is obligatory.");
+		System.out.println("\t-mf \tA formula - the elemental composition");
+		System.out.println("\t-p  \tThe paralellism degree (number of parallel threads)");
+		System.out.println("\t-o  \tThe name of the output file");
+	}
 
 	private void wait2Finish() {
 		int time = 0, min = 0;
