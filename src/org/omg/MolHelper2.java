@@ -23,7 +23,7 @@ import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.ChemObject;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
-import org.openscience.cdk.atomtype.GeneratorAtomTypeMatcher;
+//import org.openscience.cdk.atomtype.GeneratorAtomTypeMatcher;
 import org.openscience.cdk.config.AtomTypeFactory;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.graph.ConnectivityChecker;
@@ -58,7 +58,7 @@ public class MolHelper2 {
 	int atomCount=0;
 	String canString="";
 	private static Map<String, Double> valenceTable; 
-	private static GeneratorAtomTypeMatcher matcher;
+//	private static GeneratorAtomTypeMatcher matcher;
 
 	
 	int [] rep;
@@ -73,7 +73,7 @@ public class MolHelper2 {
 		for (IAtomType type : types) {
 			typeList.add(type);
 		}
-		matcher = new GeneratorAtomTypeMatcher(typeList);
+//		matcher = new GeneratorAtomTypeMatcher(typeList);
 	}
 
 

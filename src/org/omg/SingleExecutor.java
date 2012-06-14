@@ -38,4 +38,13 @@ public class SingleExecutor implements MultiCoreExecutor {
 		return taskQueue.size();
 	}
 
+	@Override
+	public void execute(Generator command, boolean force) {
+		if (force) {
+			executor.execute(command);
+		} else {
+			this.execute(command);
+		}
+	}
+
 }

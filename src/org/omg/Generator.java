@@ -37,11 +37,13 @@ class Generator implements Runnable {
 					ArrayList<MolHelper2> extMolList = mol.addOneBond();
 					
 					for (MolHelper2  molecule : extMolList) {
-						taskSize ++;
+						if (taskSize < 2*pmg.executorCount) taskSize ++;
 						pmg.startedTasks.getAndIncrement();
-						if (taskSize<pmg.executor.getQueueSize() || !pmg.generateParallelTask(molecule)) {
+						if (taskSize<pmg.executor.getQueueSize()) {
 							mol = molecule;
 							run();	// continue sequentially
+						} else {
+							pmg.generateParallelTask(molecule, true);
 						}
 					}
 

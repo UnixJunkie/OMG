@@ -70,9 +70,9 @@ public class PMG{
 		startedTasks = new AtomicLong(0);
 	}
 	
-	boolean generateParallelTask(MolHelper2 molecule) {
+	boolean generateParallelTask(MolHelper2 molecule, boolean force) {
 		try {
-			executor.execute(new Generator(this, molecule));
+			executor.execute(new Generator(this, molecule), force);
 			return true;
 		} catch (RejectedExecutionException e) {	// if it failed to execute in parallel (due to overload), then continue sequentially
 			return false;
@@ -143,14 +143,14 @@ public class PMG{
 		
 		PMG pmg = new PMG();
 		// TODO: Enable using MultiExecutor
-//		pmg.executor = new SingleExecutor(executorCount);
-		pmg.executor = new MultiExecutor(executorCount);
+		pmg.executor = new SingleExecutor(executorCount);
+//		pmg.executor = new MultiExecutor(executorCount);
 		MolHelper2 mol = pmg.initialize(formula, fragments, out);
 		
 		// do the real processing
 		long before = System.currentTimeMillis();
 		pmg.startedTasks.getAndIncrement();
-		pmg.generateParallelTask(mol);
+		pmg.generateParallelTask(mol, true);
 		pmg.wait2Finish();	// wait for all tasks to finish, and close the output files
 		pmg.shutdown();	// shutdown the executor service(s)
 		long after = System.currentTimeMillis();		

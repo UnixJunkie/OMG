@@ -56,4 +56,14 @@ public class MultiExecutor implements MultiCoreExecutor {
 		return i;
 	}
 
+	@Override
+	public void execute(Generator command, boolean force) {
+		if (force) {
+			int i = (int) (Math.round(Math.random()) % executorCount);
+			executor[i].execute(command);
+		} else {
+			execute(command);
+		}
+	}
+
 }
