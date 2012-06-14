@@ -10,10 +10,11 @@ class Generator implements Runnable {
 		 */
 		private final PMG pmg;
 		MolHelper2 mol;
+		private int taskSize=0;
 		
-		public Generator(PMG pmg_FixedSizeExecutor, MolHelper2 mol) {
+		public Generator(PMG pmgExecutor, MolHelper2 mol) {
 			super();
-			pmg = pmg_FixedSizeExecutor;
+			pmg = pmgExecutor;
 			this.mol = mol;
 		}
 
@@ -22,12 +23,12 @@ class Generator implements Runnable {
 			try {
 //				if (depth == atomCount) 
 //					return;
-				if (mol.isComplete(pmg.satCheck, pmg.nH)){
+				if (mol.isComplete(/*pmg.satCheck,*/ pmg.nH)){
 					if (mol.isConnected()) {
 //						if (!molSet.add(mol.canString)) System.err.println("Duplicate");
 						pmg.mol_counter.incrementAndGet();
 						if(PMG.wFile){
-							mol.writeTo(pmg.outFile, pmg.mol_counter.get());
+							mol.writeMol(pmg.outFile, pmg.mol_counter.get());
 						}
 					}	
 				}
@@ -36,7 +37,9 @@ class Generator implements Runnable {
 					ArrayList<MolHelper2> extMolList = mol.addOneBond();
 					
 					for (MolHelper2  molecule : extMolList) {
-						if (!pmg.generateParallelTask(molecule)) {
+						taskSize ++;
+						pmg.startedTasks.getAndIncrement();
+						if (taskSize<pmg.executor.getQueueSize() || !pmg.generateParallelTask(molecule)) {
 							mol = molecule;
 							run();	// continue sequentially
 						}
