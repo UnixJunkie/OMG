@@ -20,8 +20,11 @@ import java.util.TreeSet;
 import javax.management.RuntimeErrorException;
 
 import org.openscience.cdk.ChemFile;
+import org.openscience.cdk.ChemObject;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
+import org.openscience.cdk.atomtype.GeneratorAtomTypeMatcher;
+import org.openscience.cdk.config.AtomTypeFactory;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.graph.ConnectivityChecker;
 import org.openscience.cdk.interfaces.IAtom;
@@ -54,13 +57,23 @@ public class MolHelper2 {
 	IAtomContainer acontainer;
 	int atomCount=0;
 	String canString="";
-	private static Map<String, Double> maxBondTable; 
+	private static Map<String, Double> valenceTable; 
+	private static GeneratorAtomTypeMatcher matcher;
 
 	
 	int [] rep;
 	private IAtomContainer acprotonate;
 	
 	public MolHelper2() {
+		AtomTypeFactory factory = AtomTypeFactory.getInstance("org/openscience/cdk/dict/data/cdk-atom-types.owl", 
+				new ChemObject().getBuilder()
+				);
+		IAtomType[] types = factory.getAllAtomTypes();
+		List<IAtomType> typeList = new ArrayList<IAtomType>();
+		for (IAtomType type : types) {
+			typeList.add(type);
+		}
+		matcher = new GeneratorAtomTypeMatcher(typeList);
 	}
 
 
@@ -164,6 +177,17 @@ public class MolHelper2 {
 		}
 	}
 	
+	public boolean isComplete(int nH) {
+		int totalCapacity = 0, usedCapacity = 0;
+		for (IAtom at : acontainer.atoms()) {
+			totalCapacity += valenceTable.get(at.getSymbol());
+		}
+		for (IBond b:acontainer.bonds()) {
+			usedCapacity += orderNumber(b.getOrder())*2;
+		}
+		return nH == totalCapacity - usedCapacity;
+	}
+	
 	
 	/**
 	 * Checks if all atoms in the molecule are connected.
@@ -178,13 +202,45 @@ public class MolHelper2 {
 	 * @param outFile
 	 * @param mol_counter
 	 * @throws CDKException
+	 * @throws CloneNotSupportedException 
 	 */
-	public synchronized void writeTo(BufferedWriter outFile, long mol_counter) throws CDKException{
+	public synchronized boolean writeTo(BufferedWriter outFile, long mol_counter) throws CDKException, CloneNotSupportedException{
 		StringWriter writer = new StringWriter();
 		MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
 		try {
+			acprotonate = (IAtomContainer) acontainer.clone();
+
+			for (IAtom atom : acprotonate.atoms()) {
+				IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
+
+				AtomTypeManipulator.configure(atom, type);
+			}
+			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+
 			mdlWriter.write(acprotonate);
 			writer.append("> <Id>\n"+(mol_counter)+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
+			outFile.write(writer.toString());
+		} catch (IOException e) {
+			System.err.println("Could not write molecule to output file.");
+			e.printStackTrace();
+		} catch (IllegalArgumentException ila) {
+			return false;
+		}
+		return true;
+	}
+	
+	public synchronized void writeMol(BufferedWriter outFile, long mol_counter) {
+		StringWriter writer = new StringWriter();
+		writer.write("\n  PMG\n\n  "+acontainer.getAtomCount()+"  "+acontainer.getBondCount()+"  0  0  0  0  0  0  0  0999 V2000\n");
+		for (IAtom atom : acontainer.atoms()) {
+			writer.write("    0.0000    0.0000    0.0000 "+atom.getSymbol()+"   0  0  0  0  0  0  0  0  0  0  0  0\n");
+		}
+		for (IBond bond : acontainer.bonds()){
+			writer.write("  "+(acontainer.getAtomNumber(bond.getAtom(0))+1)+"  "+(acontainer.getAtomNumber(bond.getAtom(1))+1)+"  "+orderNumber(bond.getOrder())+"  0  0  0  0 \n");
+		}
+		writer.write("M  END\n> <Id>\n"+mol_counter+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
+		try {
 			outFile.write(writer.toString());
 		} catch (IOException e) {
 			System.err.println("Could not write molecule to output file.");
@@ -210,10 +266,10 @@ public class MolHelper2 {
 		
 		// Note that the representative of an atom never has a bigger ID
 		for (int left = 0; left < vCount; left++){
-			if (maxBondTable.get(acontainer.getAtom(left).getSymbol()) == bondCounts[left]) continue;
+			if (valenceTable.get(acontainer.getAtom(left).getSymbol()) == bondCounts[left]) continue;
 //			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
 			for (int right = left+1; right < vCount; right++){
-				if (maxBondTable.get(acontainer.getAtom(right).getSymbol()) == bondCounts[right]) continue;
+				if (valenceTable.get(acontainer.getAtom(right).getSymbol()) == bondCounts[right]) continue;
 //				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
@@ -226,6 +282,8 @@ public class MolHelper2 {
 //				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
 //				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
 //				if(type1 == null || type2 == null) continue;
+//				if (!matcher.canBecomeValid(copyMol,copyMol.getAtom(atom1)) ||
+//					!matcher.canBecomeValid(copyMol,copyMol.getAtom(atom2))) continue;
 
 				// canonize 
 				Graph graph = new Graph();
@@ -403,12 +461,12 @@ public class MolHelper2 {
 	static {
 
 		// initialize the table
-		maxBondTable = new HashMap<>();
+		valenceTable = new HashMap<>();
 		// TODO: read atom symbols from CDK
-		maxBondTable.put("C", new Double(4));
-		maxBondTable.put("N", new Double(5));
-		maxBondTable.put("O", new Double(2));
-		maxBondTable.put("S", new Double(6));
-		maxBondTable.put("P", new Double(5));
+		valenceTable.put("C", new Double(4));
+		valenceTable.put("N", new Double(5));	// TODO: implement multiple numbers
+		valenceTable.put("O", new Double(2));
+		valenceTable.put("S", new Double(6));
+		valenceTable.put("P", new Double(5));
 	}
 }
