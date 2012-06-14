@@ -33,4 +33,9 @@ public class SingleExecutor implements MultiCoreExecutor {
 		executor.shutdown();
 	}
 
+	@Override
+	public int getQueueSize() {
+		return taskQueue.size();
+	}
+
 }

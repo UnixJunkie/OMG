@@ -1,5 +1,6 @@
 package org.omg;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -46,6 +47,13 @@ public class MultiExecutor implements MultiCoreExecutor {
 		for (ThreadPoolExecutor ex : executor){
 			ex.shutdown();
 		}
+	}
+
+	@Override
+	public int getQueueSize() {
+		int i = 0;
+		for (BlockingQueue queue : taskQueue) i += queue.size(); 
+		return i;
 	}
 
 }
