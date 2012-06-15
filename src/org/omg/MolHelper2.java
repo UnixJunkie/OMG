@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.management.RuntimeErrorException;
 
@@ -59,7 +60,7 @@ public class MolHelper2 {
 	String canString="";
 	private static Map<String, List<Integer>> valenceTable; 
 //	private static GeneratorAtomTypeMatcher matcher;
-
+	static AtomicInteger N3 = new AtomicInteger(0);
 	
 	int [] rep;
 	private IAtomContainer acprotonate;
@@ -179,7 +180,7 @@ public class MolHelper2 {
 	
 
 	private int openings = 0;
-	private boolean addOpenings(Iterator<IAtom> atomIter, int nH) {
+	private boolean addUpOpenings(Iterator<IAtom> atomIter, int nH) {
 		if (atomIter.hasNext()) {
 			IAtom atom = atomIter.next();
 			String symbol = atom.getSymbol();
@@ -193,9 +194,9 @@ public class MolHelper2 {
 						openings -= (valence - bondSum);
 						return false;
 					}
-					if (addOpenings(atomIter, nH)) {
+					if (addUpOpenings(atomIter, nH)) {
 						/**/
-//						if (valence == 3) System.out.println(acontainer);
+						if (valence == 3) N3.incrementAndGet();
 						/**/
 						return true;
 					}
@@ -209,7 +210,7 @@ public class MolHelper2 {
 	}
 	
 	public boolean isComplete(int nH) {
-		return addOpenings (acontainer.atoms().iterator(), nH);
+		return addUpOpenings (acontainer.atoms().iterator(), nH);
 	}
 	
 	
@@ -254,6 +255,13 @@ public class MolHelper2 {
 		return true;
 	}
 	
+	/**
+	 * Writes a molecule to a file in SDF format. This is more or less equivalent to writeTo method but it does not depend on CDK. 
+	 * The good is that it does not have the restrictions of having a "valid" atom container and is expected to wrok faster.
+	 * The bad side is that it has less features and cannot handle all complicated chemical structures. 
+	 * @param outFile
+	 * @param mol_counter
+	 */
 	public synchronized void writeMol(BufferedWriter outFile, long mol_counter) {
 		StringWriter writer = new StringWriter();
 		writer.write(String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",acontainer.getAtomCount(), acontainer.getBondCount()));
@@ -274,19 +282,23 @@ public class MolHelper2 {
 	
 	/**
 	 * It checks all possible ways to add one bond to a molecule, while considering the canonical augmentation of the corresponding graph.
+	 * 
+	 * @param canAug specifies whether or not to use canonical augmentation.
 	 * @return
 	 * @throws CloneNotSupportedException
 	 * @throws CDKException
 	 */
-	ArrayList<MolHelper2> addOneBond() throws CloneNotSupportedException, CDKException{
+	ArrayList<MolHelper2> addBond(boolean canAug) throws CloneNotSupportedException, CDKException{
     	Set<String> visited = new HashSet<>();
 		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
 		int vCount = acontainer.getAtomCount();
+
 		int [] bondCounts = new int [vCount];
 		for (IBond b:acontainer.bonds()) {
 			bondCounts[acontainer.getAtomNumber(b.getAtom(0))] += orderNumber(b.getOrder());
 			bondCounts[acontainer.getAtomNumber(b.getAtom(1))] += orderNumber(b.getOrder());
 		}
+		
 		
 		// Note that the representative of an atom never has a bigger ID
 		for (int left = 0; left < vCount; left++){
@@ -302,12 +314,6 @@ public class MolHelper2 {
 				
 				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
 				if (!incBond(atom1, atom2, copyMol)) continue;	
-//				CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
-//				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
-//				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
-//				if(type1 == null || type2 == null) continue;
-//				if (!matcher.canBecomeValid(copyMol,copyMol.getAtom(atom1)) ||
-//					!matcher.canBecomeValid(copyMol,copyMol.getAtom(atom2))) continue;
 
 				// canonize 
 				Graph graph = new Graph();
@@ -317,7 +323,7 @@ public class MolHelper2 {
 				String molString = molString(canExtMol);
 				if (visited.add(molString) == false) continue;	
 
-				if (acontainer.getBondCount()==0){ // no need to check canonical augmentation
+				if (!canAug || acontainer.getBondCount()==0){ // no need to check canonical augmentation
 					extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
 					continue;
 				}
@@ -348,42 +354,12 @@ public class MolHelper2 {
 		return extMolList;
 	}
 
+	ArrayList<MolHelper2> addOneBond() throws CloneNotSupportedException, CDKException{
+		return addBond(true);
+	}
 
 	ArrayList<MolHelper2> addOneBondNoCheck() throws CloneNotSupportedException, CDKException{
-    	Set<String> visited = new HashSet<>();
-    	ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
-		
-		int vCount = acontainer.getAtomCount();
-		
-		// Note that the representative of an atom never has a bigger ID
-		for (int left = 0; left < vCount; left++){
-//			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
-			for (int right = left+1; right < vCount; right++){
-//				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
-				// For the first iteration (in inner loop), we may consider the same orbit as "left"
-				
-				int atom1 = (left);
-				int atom2 = (right);
-				
-				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
-				if (!incBond(atom1, atom2, copyMol)) continue;	
-				CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(copyMol.getBuilder());
-				IAtomType type1 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom1));
-				IAtomType type2 = matcher.findMatchingAtomType(copyMol,copyMol.getAtom(atom2));
-				if(type1 == null || type2 == null) continue;
-
-				// canonize 
-				Graph graph = new Graph();
-				int[] perm1 = graph.canonize(copyMol, true);	// ask for the automorphisms to be reported back
-				IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
-				int[] orbit = graph.orbitRep;
-				String molString = molString(canExtMol);
-				if (visited.add(molString) == false) continue;	
-
-				extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
-			}
-		}
-		return extMolList;
+		return addBond(false);
 	}
 
 
@@ -406,13 +382,7 @@ public class MolHelper2 {
 	}
 
 	public static int orderNumber(Order o){
-		if (o == null) return 0;
-		switch (o) {
-			case SINGLE: return 1;
-			case DOUBLE: return 2;
-			case TRIPLE: return 3;
-			default:     return 4;
-		}
+		return o.ordinal()+1;
 	}
 
 	/**
