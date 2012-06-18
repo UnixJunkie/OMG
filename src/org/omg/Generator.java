@@ -32,14 +32,14 @@ class Generator implements Runnable {
 						}
 					}	
 				}
-				else{
+//				else{
 					// get all possible ways to add one bond to the molecule
 					ArrayList<MolHelper2> extMolList = mol.addOneBond();
 					
 					for (MolHelper2  molecule : extMolList) {
-						if (taskSize < 2*pmg.executorCount) taskSize ++;
+//						if (taskSize < 2*pmg.executorCount) taskSize ++;
 						pmg.startedTasks.getAndIncrement();
-						if (taskSize<pmg.executor.getQueueSize()) {
+						if (pmg.executor.getQueueSize() > pmg.executorCount*2) {
 							mol = molecule;
 							run();	// continue sequentially
 						} else {
@@ -69,7 +69,7 @@ class Generator implements Runnable {
 //							run();
 //						}
 //					}
-				}
+//				}
 			} catch (CloneNotSupportedException e){
 				e.printStackTrace();
 			} catch (CDKException e) {
