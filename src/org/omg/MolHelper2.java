@@ -60,7 +60,6 @@ public class MolHelper2 {
 	String canString="";
 	private static Map<String, List<Integer>> valenceTable; 
 //	private static GeneratorAtomTypeMatcher matcher;
-	static AtomicInteger N3 = new AtomicInteger(0);
 	
 	int [] rep;
 	private IAtomContainer acprotonate;
@@ -182,9 +181,11 @@ public class MolHelper2 {
 	private int openings = 0;
 	private int [] bondCounts;
 	private int[] perm1;
-	private boolean addUpOpenings(Iterator<IAtom> atomIter, int nH) {
-		if (atomIter.hasNext()) {
-			IAtom atom = atomIter.next();
+	private boolean addUpOpenings(int atomNum, int nH) {
+		if (atomCount == atomNum) 
+			return openings == nH;
+		else {
+			IAtom atom = acontainer.getAtom(atomNum);
 			String symbol = atom.getSymbol();
 			int bondSum = 0;
 			for (IBond b:acontainer.getConnectedBondsList(atom))
@@ -192,27 +193,18 @@ public class MolHelper2 {
 			for (Integer valence:valenceTable.get(symbol)) {
 				if (valence >= bondSum) {
 					openings += (valence - bondSum);
-					if (openings > nH) {
-						openings -= (valence - bondSum);
-						return false;
-					}
-					if (addUpOpenings(atomIter, nH)) {
-						/**/
-						if (valence == 3) N3.incrementAndGet();
-						/**/
+					if (openings <= nH && addUpOpenings(atomNum+1, nH)) {
 						return true;
 					}
 					openings -= (valence - bondSum);
 				}
 			}
-		} else {
-			return openings == nH;
 		}
 		return false;
 	}
 	
 	public boolean isComplete(int nH) {
-		return addUpOpenings (acontainer.atoms().iterator(), nH);
+		return addUpOpenings (0, nH);
 	}
 	
 	
