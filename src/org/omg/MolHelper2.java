@@ -69,11 +69,11 @@ public class MolHelper2 {
 		AtomTypeFactory factory = AtomTypeFactory.getInstance("org/openscience/cdk/dict/data/cdk-atom-types.owl", 
 				new ChemObject().getBuilder()
 				);
-		IAtomType[] types = factory.getAllAtomTypes();
-		List<IAtomType> typeList = new ArrayList<IAtomType>();
-		for (IAtomType type : types) {
-			typeList.add(type);
-		}
+//		IAtomType[] types = factory.getAllAtomTypes();
+//		List<IAtomType> typeList = new ArrayList<IAtomType>();
+//		for (IAtomType type : types) {
+//			typeList.add(type);
+//		}
 //		matcher = new GeneratorAtomTypeMatcher(typeList);
 	}
 
@@ -180,6 +180,8 @@ public class MolHelper2 {
 	
 
 	private int openings = 0;
+	private int [] bondCounts;
+	private int[] perm1;
 	private boolean addUpOpenings(Iterator<IAtom> atomIter, int nH) {
 		if (atomIter.hasNext()) {
 			IAtom atom = atomIter.next();
@@ -282,18 +284,20 @@ public class MolHelper2 {
 	
 	/**
 	 * It checks all possible ways to add one bond to a molecule, while considering the canonical augmentation of the corresponding graph.
+	 * canAug cannot be true if bigStep is true (this is why this method is made private)
 	 * 
 	 * @param canAug specifies whether or not to use canonical augmentation.
+	 * @param singleStep specifies whether to add only single bonds in each steps or consider also double and triple bonds
 	 * @return
 	 * @throws CloneNotSupportedException
 	 * @throws CDKException
 	 */
-	ArrayList<MolHelper2> addBond(boolean canAug) throws CloneNotSupportedException, CDKException{
+	private ArrayList<MolHelper2> addBond(boolean canAug, boolean bigStep) throws CloneNotSupportedException, CDKException{
     	Set<String> visited = new HashSet<>();
 		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
 		int vCount = acontainer.getAtomCount();
 
-		int [] bondCounts = new int [vCount];
+		bondCounts = new int [atomCount];
 		for (IBond b:acontainer.bonds()) {
 			bondCounts[acontainer.getAtomNumber(b.getAtom(0))] += orderNumber(b.getOrder());
 			bondCounts[acontainer.getAtomNumber(b.getAtom(1))] += orderNumber(b.getOrder());
@@ -302,64 +306,72 @@ public class MolHelper2 {
 		
 		// Note that the representative of an atom never has a bigger ID
 		for (int left = 0; left < vCount; left++){
-			if (valenceTable.get(acontainer.getAtom(left).getSymbol()).get(0) == bondCounts[left]) continue;
+			IAtom leftAtom = acontainer.getAtom(left);
+//			if (valenceTable.get(leftAtom.getSymbol()).get(0) == bondCounts[left]) continue;
 //			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
 			for (int right = left+1; right < vCount; right++){
-				if (valenceTable.get(acontainer.getAtom(right).getSymbol()).get(0) == bondCounts[right]) continue;
+				IAtom rightAtom = acontainer.getAtom(right);
+//				if (valenceTable.get(rightAtom.getSymbol()).get(0) == bondCounts[right]) continue;
 //				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
-				int atom1 = (left);
-				int atom2 = (right);
+				if (bigStep && acontainer.getBond(leftAtom, rightAtom) != null) continue;
 				
 				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
-				if (!incBond(atom1, atom2, copyMol)) continue;	
-
-				// canonize 
-				Graph graph = new Graph();
-				int[] perm1 = graph.canonize(copyMol, true);	// ask for the automorphisms to be reported back
-				IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
-				int[] orbit = graph.orbitRep;
-				String molString = molString(canExtMol);
-				if (visited.add(molString) == false) continue;	
-
-				if (!canAug || acontainer.getBondCount()==0){ // no need to check canonical augmentation
-					extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
-					continue;
-				}
-
-				// remove the last bond and canonize again (to check for canonical augmentation)
-				int maxBond = 0; 
-				for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
-
-				copyMol = (IAtomContainer) canExtMol.clone();
-				Iterator<IBond> bonds = copyMol.bonds().iterator();
-				IBond lastBond;
 				do {
-					lastBond = bonds.next();
-				} while (Integer.parseInt(lastBond.getID()) < maxBond);
-				decBond(lastBond, copyMol);	// remove a bond ....
+					if (!incBond(left, right, copyMol)) break;	
 
-				int[] perm = graph.canonize(copyMol, true);
-				copyMol = Graph.relabel(copyMol, perm);
-				String parentString = molString(copyMol);
+					// canonize 
+					Graph graph = new Graph();
+					int[] perm1 = graph.canonize(copyMol, true);	// ask for the automorphisms to be reported back
+					IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
+					int[] orbit = graph.orbitRep;
+					String molString = molString(canExtMol);
+					if (visited.add(molString) == false) break;	
 
-				if (this.canString.equals(parentString)){
-//				if (aresame(acontainer, copyMol)){
-//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
-					extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
-				}
+					if (!canAug || acontainer.getBondCount()==0){ // no need to check canonical augmentation
+						extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+						continue;
+					}
+
+
+					// remove the last bond and canonize again (to check for canonical augmentation)
+					int maxBond = 0; 
+					for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
+
+					copyMol = (IAtomContainer) canExtMol.clone();
+					Iterator<IBond> bonds = copyMol.bonds().iterator();
+					IBond lastBond;
+					do {
+						lastBond = bonds.next();
+					} while (Integer.parseInt(lastBond.getID()) < maxBond);
+					decBond(lastBond, copyMol);	// remove a bond ....
+
+					int[] perm = graph.canonize(copyMol, true);
+					copyMol = Graph.relabel(copyMol, perm);
+					String parentString = molString(copyMol);
+
+					if (this.canString.equals(parentString)){
+						//				if (aresame(acontainer, copyMol)){
+						//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
+						extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+					}
+				} while (bigStep);
 			}
 		}
 		return extMolList;
 	}
 
 	ArrayList<MolHelper2> addOneBond() throws CloneNotSupportedException, CDKException{
-		return addBond(true);
+		return addBond(true, false);
 	}
 
 	ArrayList<MolHelper2> addOneBondNoCheck() throws CloneNotSupportedException, CDKException{
-		return addBond(false);
+		return addBond(false, false);
+	}
+
+	ArrayList<MolHelper2> addBigBond() throws CloneNotSupportedException, CDKException {
+		return addBond(false, true);
 	}
 
 
@@ -408,11 +420,18 @@ public class MolHelper2 {
 		return Arrays.deepEquals(molArray(ac1),molArray(ac2));
 	}
 
-	private boolean incBond(int leftAtom, int rightAtom, IAtomContainer m_ext) {
+
+	private boolean incBond(int left, int right, IAtomContainer m_ext) {
+		IAtom leftAtom = m_ext.getAtom(left);
+		IAtom rightAtom = m_ext.getAtom(right);
+		
+		if (isFull(leftAtom, m_ext))  return false;
+		if (isFull(rightAtom, m_ext)) return false;
+
 		//Only one object bond is used, and recycled at every time we use it
-		IBond bondAdd = m_ext.getBond(m_ext.getAtom(leftAtom), m_ext.getAtom(rightAtom));
+		IBond bondAdd = m_ext.getBond(leftAtom, rightAtom);
 		if(bondAdd == null){					
-			m_ext.addBond(leftAtom, rightAtom, IBond.Order.SINGLE);
+			m_ext.addBond(left, right, IBond.Order.SINGLE);
 		}
 		else if(bondAdd.getOrder() == IBond.Order.SINGLE){
 			bondAdd.setOrder(IBond.Order.DOUBLE);
@@ -428,6 +447,18 @@ public class MolHelper2 {
 			return false;
 		}
 		return true;
+	}
+
+
+	/**
+	 * @param atom
+	 */
+	private boolean isFull(IAtom atom, IAtomContainer m_ext) {
+		int bondSum;
+		bondSum = 0;
+		for (IBond b:m_ext.getConnectedBondsList(atom))
+			bondSum += b.getOrder().ordinal()+1;
+		return (valenceTable.get(atom.getSymbol()).get(0) <= bondSum);
 	}
 	
 	private boolean decBond(IBond bondDel, IAtomContainer m_ext) {
