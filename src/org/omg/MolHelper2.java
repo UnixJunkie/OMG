@@ -57,6 +57,7 @@ import fi.tkk.ics.jbliss.Graph;
 public class MolHelper2 {
 	IAtomContainer acontainer;
 	int atomCount=0;
+	int maxOpenings = 0;
 	String canString="";
 	private static Map<String, List<Integer>> valenceTable; 
 //	private static GeneratorAtomTypeMatcher matcher;
@@ -77,11 +78,12 @@ public class MolHelper2 {
 	}
 
 
-	public MolHelper2(IAtomContainer acontainer, int[] orbit, String molString) {
+	public MolHelper2(IAtomContainer acontainer, int[] orbit, String molString, int mo) {
 		this.acontainer = acontainer;
 		atomCount = acontainer.getAtomCount();
 		this.rep = orbit.clone();
 		this.canString = molString;
+		this.maxOpenings = mo;
 //		System.out.print("Mol Orbit:");
 //		for (int i:rep) System.out.print(" "+rep[i]);
 //		System.out.println();
@@ -100,10 +102,12 @@ public class MolHelper2 {
 			String symbol = atom.getSymbol();
 			if(symbol.equals("H")){
 				nH++;
+				maxOpenings--;
 				listcont.add(atom);
 			} else {
 				atom.setID(""+atomCount++);
 				atom.setFlag(1, false);
+				maxOpenings += valenceTable.get(symbol).get(0);
 			}
 		}
 		for(IAtom atom: listcont){
@@ -127,6 +131,7 @@ public class MolHelper2 {
 	public int initialize (String formula, String fragments) throws CloneNotSupportedException, CDKException, FileNotFoundException{
 		throw new RuntimeErrorException(new Error("The fragments are not yet implemented."));
 		/*
+		 * TODO: decrement maxOpenings accordingly
 		// generate the atom as in the above constructor
 		int nH = this.initialize(formula);
 
@@ -179,7 +184,7 @@ public class MolHelper2 {
 	
 
 	private int openings = 0;
-	private int [] bondCounts;
+//	private int [] bondCounts;
 	private int[] perm1;
 	private boolean addUpOpenings(int atomNum, int nH) {
 		if (atomCount == atomNum) 
@@ -285,23 +290,25 @@ public class MolHelper2 {
 	 * @throws CDKException
 	 */
 	private ArrayList<MolHelper2> addBond(boolean canAug, boolean bigStep) throws CloneNotSupportedException, CDKException{
-    	Set<String> visited = new HashSet<>();
 		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
-		int vCount = acontainer.getAtomCount();
+		if (maxOpenings<=0) return extMolList;	// the molecule is already saturated!
+		
+    	Set<String> visited = new HashSet<>();
+//		int vCount = acontainer.getAtomCount();
 
-		bondCounts = new int [atomCount];
-		for (IBond b:acontainer.bonds()) {
-			bondCounts[acontainer.getAtomNumber(b.getAtom(0))] += orderNumber(b.getOrder());
-			bondCounts[acontainer.getAtomNumber(b.getAtom(1))] += orderNumber(b.getOrder());
-		}
+//		bondCounts = new int [atomCount];
+//		for (IBond b:acontainer.bonds()) {
+//			bondCounts[acontainer.getAtomNumber(b.getAtom(0))] += orderNumber(b.getOrder());
+//			bondCounts[acontainer.getAtomNumber(b.getAtom(1))] += orderNumber(b.getOrder());
+//		}
 		
 		
 		// Note that the representative of an atom never has a bigger ID
-		for (int left = 0; left < vCount; left++){
+		for (int left = 0; left < atomCount; left++){
 			IAtom leftAtom = acontainer.getAtom(left);
 //			if (valenceTable.get(leftAtom.getSymbol()).get(0) == bondCounts[left]) continue;
 			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
-			for (int right = left+1; right < vCount; right++){
+			for (int right = left+1; right < atomCount; right++){
 				IAtom rightAtom = acontainer.getAtom(right);
 //				if (valenceTable.get(rightAtom.getSymbol()).get(0) == bondCounts[right]) continue;
 				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
@@ -322,7 +329,7 @@ public class MolHelper2 {
 					if (visited.add(molString) == false) break;	
 
 					if (!canAug || acontainer.getBondCount()==0){ // no need to check canonical augmentation
-						extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
 						continue;
 					}
 
@@ -346,7 +353,7 @@ public class MolHelper2 {
 					if (this.canString.equals(parentString)){
 						//				if (aresame(acontainer, copyMol)){
 						//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
-						extMolList.add(new MolHelper2(canExtMol, orbit, molString)); 
+						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
 					}
 				} while (bigStep);
 			}
