@@ -307,11 +307,11 @@ public class MolHelper2 {
 		for (int left = 0; left < atomCount; left++){
 			IAtom leftAtom = acontainer.getAtom(left);
 //			if (valenceTable.get(leftAtom.getSymbol()).get(0) == bondCounts[left]) continue;
-			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
+//			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
 			for (int right = left+1; right < atomCount; right++){
 				IAtom rightAtom = acontainer.getAtom(right);
 //				if (valenceTable.get(rightAtom.getSymbol()).get(0) == bondCounts[right]) continue;
-				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
+//				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
 				if (bigStep && acontainer.getBond(leftAtom, rightAtom) != null) continue;
