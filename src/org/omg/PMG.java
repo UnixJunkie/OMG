@@ -8,6 +8,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,7 +40,7 @@ import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
-
+import org.omg.tools.*;
 /**
  * Open Molecule Generation
  * The main class collecting parameters and setting global objects
@@ -52,11 +53,9 @@ public class PMG{
 
 	AtomicLong mol_counter;
 	SaturationChecker satCheck = new SaturationChecker();
-	private int atomCount;
 	boolean parallelExecution = true;
 
-	static int executorCount=6;
-	AtomicLong startedTasks;
+	final int executorCount;
 	MultiCoreExecutor executor;
 
 	int nH;
@@ -65,43 +64,65 @@ public class PMG{
 	// TODO: This is only for checking duplicates. This should be unnecessary in a good version.
 	private Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 
-	public PMG(){
+	public PMG(int ec){
 		mol_counter = new AtomicLong(0);
-		startedTasks = new AtomicLong(0);
+		executorCount = ec;
 	}
 	
-	boolean generateParallelTask(MolHelper2 molecule, boolean force) {
+	boolean generateParallelTask(Runnable molecule, boolean force) {
 		try {
-			executor.execute(new Generator(this, molecule), force);
+			executor.execute(molecule, force);
 			return true;
 		} catch (RejectedExecutionException e) {	// if it failed to execute in parallel (due to overload), then continue sequentially
 			return false;
 		}
 	}
+		
+	boolean generateParallelTask(MolHelper2 molecule, boolean force) {
+		return generateParallelTask(new Generator(this, molecule), force);
+	}
 
+	private void startup (String formula) {
+		ArrayList<String> atomSymbols = Util.parseFormula(formula);
+		if (atomSymbols == null) System.exit(1);
+		MolProcessor mp = new MolProcessor(atomSymbols, this);
+		executor.execute(mp);
+	}
+/*	
+	private void addAtomAndStart(Atom[] atomsInMolecule, ArrayList<String> atomSymbols, int i) {
+		List<Atom> atomPossibilities = Atom.create(atomSymbols.get(i));
+		for (Atom a:atomPossibilities) {
+			atomsInMolecule[i] = a;
+			if (i+1<atomSymbols.size()) {
+				addAtomAndStart(atomsInMolecule, atomSymbols, i+1);
+			} else {
+				MolProcessor mp = new MolProcessor(atomsInMolecule, Util.nH);
+				startedTasks.getAndIncrement();
+				executor.execute(mp);
+			}
+		}
+	}
+*/
 	private MolHelper2 initialize(String formula, String fragments, String output) {
 		MolHelper2 mol;
 		try {
-			if (wFile) outFile = new BufferedWriter(new FileWriter(output));
-
 			mol = new MolHelper2();
 
 			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+executorCount+" threads).");
 			System.out.print("Current atom order is: ");
-//			while (true) {
+			while (true) {
 			if (fragments == null)
 				nH = mol.initialize(formula);
 			else 
 				nH = mol.initialize(formula, fragments);
 			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
 			System.out.println();
-//			if (formula.equals("C4H7NO3")) {
-//				if (!mol.acontainer.getAtom(0).getSymbol().equals("C")) continue;
-//				if (!mol.acontainer.getAtom(4).getSymbol().equals("N")) continue;
-//			}
-//			break;
-//			}
-			atomCount = mol.atomCount;
+			if (formula.equals("C4H7NO3")) {
+				if (!mol.acontainer.getAtom(0).getSymbol().equals("O")) continue;
+				if (!mol.acontainer.getAtom(7).getSymbol().equals("C")) continue;
+			}
+			break;
+			}
 			return mol;
 		} catch (IOException e) {
 			System.err.println("Could not open "+output+" for writing. Continuting without file output...");
@@ -120,9 +141,10 @@ public class PMG{
 		String formula = null;
 		String fragments = null;
 		String out = "default_out.sdf";
+		int eCount = Runtime.getRuntime().availableProcessors();
 		for(int i = 0; i < args.length; i++){
 			if(args[i].equals("-p")){
-				executorCount = Integer.parseInt(args[++i]);
+				eCount = Integer.parseInt(args[++i]);
 			}
 			else if(args[i].equals("-mf")){
 				formula = args[++i];
@@ -141,23 +163,39 @@ public class PMG{
 			System.exit(0);
 		}
 		
-		PMG pmg = new PMG();
+		new PMG(eCount).calculate(formula, out);
+	}
+
+	/**
+	 * @param formula
+	 * @param out
+	 * @param pmg
+	 * @throws IOException
+	 */
+	private void calculate(String formula, String out)
+			throws IOException {
 		// TODO: Enable using MultiExecutor
-		pmg.executor = new SingleExecutor(executorCount);
-//		pmg.executor = new MultiExecutor(executorCount);
-		MolHelper2 mol = pmg.initialize(formula, fragments, out);
+		executor = new SingleExecutor(executorCount);
+//		pmg.executor = new MultiExecutor(executorCount);			
+		
+		if (wFile) outFile = new BufferedWriter(new FileWriter(out));
+
+		startup(formula); 
+		
+//		MolHelper2 mol = pmg.initialize(formula, fragments, out);
 		
 		// do the real processing
 		long before = System.currentTimeMillis();
-		pmg.startedTasks.getAndIncrement();
-		pmg.generateParallelTask(mol, true);
-		pmg.wait2Finish();	// wait for all tasks to finish, and close the output files
-		pmg.shutdown();	// shutdown the executor service(s)
+//		pmg.startedTasks.getAndIncrement();
+//		pmg.generateParallelTask(mol, true);
+		long finalCount = wait2Finish();	// wait for all tasks to finish, close the output file and return the final count
+		shutdown();	// shutdown the executor service(s)
 		long after = System.currentTimeMillis();		
 
 		// Report the number of generated molecules
-		System.out.println("molecules " + pmg.getFinalCount());
-		System.out.println("Duration: " + (after - before) + " miliseconds\n");
+		System.out.println("molecules " + finalCount);
+//		System.out.println("N=3 " + N3.get());
+		System.out.println("Duration: " + (after - before) + " milliseconds\n");
 	}
 
 
@@ -171,9 +209,9 @@ public class PMG{
 		System.out.println("\t-o  \tThe name of the output file");
 	}
 
-	private void wait2Finish() {
+	private long wait2Finish() {
 		int time = 0, min = 0;
-		while (0 < startedTasks.get()){
+		while (executor.busy()){
 			try {
 				Thread.sleep(1000);
 				if (60 == time++) {
@@ -190,20 +228,11 @@ public class PMG{
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		return mol_counter.get();
 	}
 
 	private void shutdown() {
 		executor.shutdown();
 	}
 
-	public long getFinalCount() {
-		while (0 < startedTasks.get()){
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		return mol_counter.get();
-	}
 }

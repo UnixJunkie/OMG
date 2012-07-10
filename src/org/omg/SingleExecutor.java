@@ -5,6 +5,8 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import javax.management.RuntimeErrorException;
+
 
 public class SingleExecutor implements MultiCoreExecutor {
 	private static final int MAX_PARALLEL = 100;
@@ -39,12 +41,17 @@ public class SingleExecutor implements MultiCoreExecutor {
 	}
 
 	@Override
-	public void execute(Generator command, boolean force) {
+	public void execute(Runnable command, boolean force) {
 		if (force) {
 			executor.execute(command);
 		} else {
 			this.execute(command);
 		}
+	}
+
+	@Override
+	public boolean busy() {
+		throw new RuntimeException("Not yet implemented."); // TODO
 	}
 
 }

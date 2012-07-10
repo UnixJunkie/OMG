@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MultiExecutor implements MultiCoreExecutor {
 
+	// int TODO 
 	ThreadPoolExecutor executor[];
 	private boolean parallelExecution[]; 
 	LinkedBlockingQueue<Runnable> taskQueue[];
@@ -57,13 +58,18 @@ public class MultiExecutor implements MultiCoreExecutor {
 	}
 
 	@Override
-	public void execute(Generator command, boolean force) {
+	public void execute(Runnable command, boolean force) {
 		if (force) {
 			int i = (int) (Math.round(Math.random()) % executorCount);
 			executor[i].execute(command);
 		} else {
 			execute(command);
 		}
+	}
+
+	@Override
+	public boolean busy() {
+		throw new RuntimeException("Not yet implemented."); // TODO
 	}
 
 }

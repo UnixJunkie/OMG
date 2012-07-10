@@ -7,5 +7,7 @@ public interface MultiCoreExecutor extends Executor {
 
 	int getQueueSize();
 
-	void execute(Generator generator, boolean force);
+	void execute(Runnable generator, boolean force);
+
+	boolean busy();
 }
