@@ -24,6 +24,7 @@ import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IChemSequence;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.io.MDLV2000Writer;
+import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
@@ -43,6 +44,8 @@ public class OMG{
 	private int nH;
 	private static boolean wfile = false;
 	private static String fragments = null;
+	private CDKHydrogenAdder hAdder;
+	private CDKAtomTypeMatcher matcher;
 	private SaturationChecker satCheck;
 	public static void main(String[] args) throws IOException{
 
@@ -125,13 +128,16 @@ public class OMG{
 
 	}
 	public OMG(){
-
+		matcher = CDKAtomTypeMatcher.getInstance(SilentChemObjectBuilder.getInstance());
+		hAdder = CDKHydrogenAdder.getInstance(SilentChemObjectBuilder.getInstance());
 	}
 	void initializeMolecule(String formula, String fragments, String output) throws CDKException, FileNotFoundException, CloneNotSupportedException {
 		long before = System.currentTimeMillis();
-
-		IAtomContainer acontainer = MolecularFormulaManipulator.getAtomContainer(
+		IAtomContainer acontainer = null;
+//		do{
+		acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
+//		}while(!acontainer.getAtom(0).getSymbol().equals("S"));
 		nH = 0;
 		List<IAtom> listcont = new ArrayList<IAtom>();
 		int atom_counter = 0;
@@ -223,14 +229,23 @@ public class OMG{
 		 * is the same as the hydrogens in the original formula*/
 		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
 
-		for (IAtom atom : acprotonate.atoms()) {
-			IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
-			
-			AtomTypeManipulator.configure(atom, type);
-		}
-		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-		hAdder.addImplicitHydrogens(acprotonate);		if((ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1) && (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH))){
+		boolean isComplete ;
+		try {
+			for (IAtom atom : acprotonate.atoms()) {
+//				IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
+				IAtomType type = matcher.findMatchingAtomType(acprotonate, atom);
 
+				AtomTypeManipulator.configure(atom, type);
+			}
+//			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+//			CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+			isComplete = satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
+		} catch (IllegalArgumentException iae){
+			isComplete = false;
+		}
+		if(isComplete){
+			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
 			if(fragments != null){
 				if(!globalmap.containsKey(canstr2)){
 					globalmap.put(canstr2, null);
@@ -242,7 +257,9 @@ public class OMG{
 						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
 					}
 					mol_counter++;
+
 				}
+			
 			}else{
 				if(wfile){
 					StringWriter writer = new StringWriter();
@@ -253,23 +270,12 @@ public class OMG{
 				}
 				mol_counter++;
 			}
-				
+			}	
 
-
-			hAdder = null;
-			acprotonate = null;
-			acontainer = null;
-			return;
 		}
 		else{
 			ArrayList<int[]> extBondlist = null;
-			if(fragments != null){
-				extBondlist = MolManipulator.extendMolFrag(acontainer);
-			}else{
-
-				extBondlist = MolManipulator.extendMol(acontainer);
-			}
-
+			extBondlist = MolManipulator.extendMol(acontainer);
 			HashMap<String, Byte> map = new HashMap<String, Byte>();
 			
 			for(int[] bond : extBondlist){
@@ -314,15 +320,20 @@ public class OMG{
 						} 
 						else if((bondAdd.getProperty("BondINfrag") == IBond.Order.SINGLE)&&
 								(bondAdd.getOrder() == IBond.Order.DOUBLE)){
-							lastNotInFrag = true;
+							lastNotInFrag = false;
+							canonM_ext.getBond(canonM_ext.getBondCount()-i).setProperty("BondINfrag", ""+canonM_ext.getBond(canonM_ext.getBondCount()-i).getOrder());
 						}
 						else if((bondAdd.getProperty("BondINfrag") == IBond.Order.DOUBLE)&&
 								(bondAdd.getOrder() == IBond.Order.TRIPLE)){
-							lastNotInFrag = true;
+							lastNotInFrag = false;
+							canonM_ext.getBond(canonM_ext.getBondCount()-i).setProperty("BondINfrag", ""+canonM_ext.getBond(canonM_ext.getBondCount()-i).getOrder());
+
 						}
 						else if((bondAdd.getProperty("BondINfrag") == IBond.Order.TRIPLE)&&
 								(bondAdd.getOrder() == IBond.Order.QUADRUPLE)){
-							lastNotInFrag = true;
+							lastNotInFrag = false;
+							canonM_ext.getBond(canonM_ext.getBondCount()-i).setProperty("BondINfrag", ""+canonM_ext.getBond(canonM_ext.getBondCount()-i).getOrder());
+
 						}	
 					}
 
@@ -348,15 +359,11 @@ public class OMG{
 					}
 					
 					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
-
-						m_ext = null;
-						bondAdd = null;
-						
+			
 						generateMol(canonM_ext, canstr);	
 					}	
 				}
 			}		
-			return;				
 		}
 
 	}
