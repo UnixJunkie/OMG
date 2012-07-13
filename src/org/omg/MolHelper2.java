@@ -37,6 +37,9 @@ import org.openscience.cdk.interfaces.IChemObject;
 import org.openscience.cdk.interfaces.IChemSequence;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.io.MDLV2000Writer;
+import org.openscience.cdk.nonotify.NoNotificationChemObjectBuilder;
+import org.openscience.cdk.smiles.SmilesGenerator;
+import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
@@ -66,9 +69,9 @@ public class MolHelper2 {
 	private IAtomContainer acprotonate;
 	
 	public MolHelper2() {
-		AtomTypeFactory factory = AtomTypeFactory.getInstance("org/openscience/cdk/dict/data/cdk-atom-types.owl", 
-				new ChemObject().getBuilder()
-				);
+//		AtomTypeFactory factory = AtomTypeFactory.getInstance("org/openscience/cdk/dict/data/cdk-atom-types.owl", 
+//				new ChemObject().getBuilder()
+//				);
 //		IAtomType[] types = factory.getAllAtomTypes();
 //		List<IAtomType> typeList = new ArrayList<IAtomType>();
 //		for (IAtomType type : types) {
@@ -81,7 +84,7 @@ public class MolHelper2 {
 	public MolHelper2(IAtomContainer acontainer, int[] orbit, String molString, int mo) {
 		this.acontainer = acontainer;
 		atomCount = acontainer.getAtomCount();
-		this.rep = orbit.clone();
+		if (orbit != null) this.rep = orbit.clone();
 		this.canString = molString;
 		this.maxOpenings = mo;
 //		System.out.print("Mol Orbit:");
@@ -91,8 +94,10 @@ public class MolHelper2 {
 
 
 	public int initialize (String formula) throws CloneNotSupportedException{
-		acontainer = MolecularFormulaManipulator.getAtomContainer(
+		do{
+			acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
+		}while (isNotOrdered()) ;
 
 		atomCount = 0;
 		// Count and remove the Hydrogens
@@ -124,39 +129,57 @@ public class MolHelper2 {
 			}
 			rep[i] = r;	// initially all atoms of a type are symmetric
 		}
-		canString = molString(acontainer);
 		return nH;
 	}
 	
+	private boolean isNotOrdered() {
+		if (!acontainer.getAtom(0).getSymbol().equals("S")) return true;
+		if (!acontainer.getAtom(1).getSymbol().equals("O")) return true;
+		if (!acontainer.getAtom(3).getSymbol().equals("N")) return true;
+		if (!acontainer.getAtom(4).getSymbol().equals("C")) return true;
+		return false;
+	}
+
+
 	public int initialize (String formula, String fragments) throws CloneNotSupportedException, CDKException, FileNotFoundException{
-		throw new RuntimeErrorException(new Error("The fragments are not yet implemented."));
-		/*
-		 * TODO: decrement maxOpenings accordingly
+//		throw new RuntimeErrorException(new Error("The fragments are not yet implemented."));
 		// generate the atom as in the above constructor
 		int nH = this.initialize(formula);
+		if (fragments != null) {
+			// Assuming that fragments is not null, add the fragments to the atom structure and canonicalize
+			InputStream ins = new BufferedInputStream(new FileInputStream(fragments));
+			MDLV2000Reader reader = new MDLV2000Reader(ins);
+			ChemFile fileContents = (ChemFile)reader.read(new ChemFile());		        
+			IChemSequence sequence = fileContents.getChemSequence(0);
 
-		// Assuming that fragments is not null, add the fragments to the atom structure and canonicalize
-		InputStream ins = new BufferedInputStream(new FileInputStream(fragments));
-		MDLV2000Reader reader = new MDLV2000Reader(ins);
-		ChemFile fileContents = (ChemFile)reader.read(new ChemFile());		        
-		IChemSequence sequence = fileContents.getChemSequence(0);
-		
-		for (int i=0; i<sequence.getChemModelCount(); i++) {
-			IAtomContainer frag = sequence.getChemModel(i).getMoleculeSet().getAtomContainer(0);
-			
-			try {
-				acontainer = MolManipulator.buildFromFragment(acontainer,frag);
-			} catch (CloneNotSupportedException e1) {
-				e1.printStackTrace();
+			for (int i=0; i<sequence.getChemModelCount(); i++) {
+				IAtomContainer frag = sequence.getChemModel(i).getMoleculeSet().getAtomContainer(0);
+
+				try {
+					acontainer = MolManipulator.buildFromFragment(acontainer,frag);
+				} catch (CloneNotSupportedException e1) {
+					e1.printStackTrace();
+				}
 			}
+			// TODO: make it canonical?
+			// canonize 
+			Graph graph = new Graph(atomCount);
+			acontainer = Graph.relabel(acontainer, graph.canonize(acontainer, true));
 		}
-		// TODO: make it canonical?
-		
-		acontainer = MolManipulator.getcanonical(acontainer);
+		canString = molString(acontainer);
 		return nH;
-		*/
 	}
 		
+	public boolean isAcceptedByCdk() throws CDKException {
+		CDKAtomTypeMatcher typeMatcher = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder());
+		for (IAtom atom : acontainer.atoms()) {
+			IAtomType type = typeMatcher.findMatchingAtomType(acontainer, atom);
+			if (type == null) return false;
+			AtomTypeManipulator.configure(atom, type);	// TODO: What does this line mean? Is this method correct at all?!
+		}
+		return true;
+	}
+	
 	/**
 	 * Checks if a molecule is complete, including checking the number of hydrogens against nH, and saturation.
 	 * @param satCheck
@@ -291,7 +314,7 @@ public class MolHelper2 {
 	 */
 	private ArrayList<MolHelper2> addBond(boolean canAug, boolean bigStep) throws CloneNotSupportedException, CDKException{
 		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
-		if (maxOpenings<=0) return extMolList;	// the molecule is already saturated!
+		if (maxOpenings<=acontainer.getBondCount()*2) return extMolList;	// the molecule is already saturated!
 		
     	Set<String> visited = new HashSet<>();
 //		int vCount = acontainer.getAtomCount();
@@ -321,7 +344,7 @@ public class MolHelper2 {
 					if (!incBond(left, right, copyMol)) break;	
 
 					// canonize 
-					Graph graph = new Graph();
+					Graph graph = new Graph(atomCount);
 					int[] perm1 = graph.canonize(copyMol, true);	// ask for the automorphisms to be reported back
 					IAtomContainer canExtMol = Graph.relabel(copyMol, perm1);
 					int[] orbit = graph.orbitRep;
@@ -329,7 +352,7 @@ public class MolHelper2 {
 					if (visited.add(molString) == false) break;	
 
 					if (!canAug || acontainer.getBondCount()==0){ // no need to check canonical augmentation
-						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
+						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings));  
 						continue;
 					}
 
@@ -339,21 +362,27 @@ public class MolHelper2 {
 					for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
 
 					copyMol = (IAtomContainer) canExtMol.clone();
-					Iterator<IBond> bonds = copyMol.bonds().iterator();
 					IBond lastBond;
 					do {
-						lastBond = bonds.next();
-					} while (Integer.parseInt(lastBond.getID()) < maxBond);
-					decBond(lastBond, copyMol);	// remove a bond ....
+						Iterator<IBond> bonds = copyMol.bonds().iterator();
+						do {
+							lastBond = bonds.next();
+						} while (Integer.parseInt(lastBond.getID()) < maxBond);
+						if (lastBond.getProperty("BondINfrag") == null || !lastBond.getProperty("BondINfrag").equals(""+lastBond.getOrder())){
+							break;
+						}
+						for (int p=1; p<perm1.length; p++) if (perm1[maxBond]-1 == perm1[p]) { maxBond = p; break; }
+					}while(maxBond>=atomCount);
 
+					decBond(lastBond, copyMol);	// remove a bond ....
 					int[] perm = graph.canonize(copyMol, true);
 					copyMol = Graph.relabel(copyMol, perm);
 					String parentString = molString(copyMol);
-
+					
 					if (this.canString.equals(parentString)){
 						//				if (aresame(acontainer, copyMol)){
 						//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
-						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
+						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings)); 
 					}
 				} while (bigStep);
 			}
@@ -373,7 +402,32 @@ public class MolHelper2 {
 		return addBond(false, true);
 	}
 
+	SmilesGenerator generator = new SmilesGenerator();
+	
+	SmilesParser parser = new SmilesParser(
+			  NoNotificationChemObjectBuilder.getInstance()
+			);
+	ArrayList<MolHelper2> addBondUsingSmiles() throws CloneNotSupportedException, CDKException{
+		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
+		if (maxOpenings<=acontainer.getBondCount()*2) return extMolList;	// the molecule is already saturated!
+		
+    	Set<String> visited = new HashSet<>();
+		
+		// Note that the representative of an atom never has a bigger ID
+		for (int left = 0; left < atomCount; left++){
+			for (int right = left+1; right < atomCount; right++){
+				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
+				if (!incBond(left, right, copyMol)) continue;	
 
+				String canSmiles = 	generator.createSMILES(copyMol);
+				if (visited.add(canSmiles)) 
+					extMolList.add(new MolHelper2(parser.parseSmiles(canSmiles), null, canSmiles, maxOpenings));  
+			}
+		}
+		return extMolList;
+	}
+	
+	
 	/**
 	 * 
 	 * @param ac

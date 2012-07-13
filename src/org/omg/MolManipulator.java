@@ -277,7 +277,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
 				continue;
 			}
-
+//
 //			CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(acCloned.getBuilder());
 //			IAtomType type1 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(i));
 //		    IAtomType type2 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(j));

@@ -110,19 +110,12 @@ public class PMG{
 
 			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+executorCount+" threads).");
 			System.out.print("Current atom order is: ");
-			while (true) {
 			if (fragments == null)
 				nH = mol.initialize(formula);
 			else 
 				nH = mol.initialize(formula, fragments);
 			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
 			System.out.println();
-			if (formula.equals("C4H7NO3")) {
-				if (!mol.acontainer.getAtom(0).getSymbol().equals("O")) continue;
-				if (!mol.acontainer.getAtom(7).getSymbol().equals("C")) continue;
-			}
-			break;
-			}
 			return mol;
 		} catch (IOException e) {
 			System.err.println("Could not open "+output+" for writing. Continuting without file output...");

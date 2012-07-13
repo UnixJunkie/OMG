@@ -3,6 +3,7 @@ package org.omg;
 import java.util.ArrayList;
 
 import org.openscience.cdk.exception.CDKException;
+import org.openscience.cdk.interfaces.IBond;
 
 class Generator implements Runnable {
 		/**
@@ -10,7 +11,6 @@ class Generator implements Runnable {
 		 */
 		private final PMG pmg;
 		MolHelper2 mol;
-		private int taskSize=0;
 		
 		public Generator(PMG pmgExecutor, MolHelper2 mol) {
 			super();
@@ -26,9 +26,9 @@ class Generator implements Runnable {
 				if (mol.isComplete(/*pmg.satCheck,*/ pmg.nH)){
 					if (mol.isConnected()) {
 //						if (!molSet.add(mol.canString)) System.err.println("Duplicate");
-						pmg.mol_counter.incrementAndGet();
+						long count = pmg.mol_counter.incrementAndGet();
 						if(PMG.wFile){
-							mol.writeMol(pmg.outFile, pmg.mol_counter.get());
+							mol.writeMol(pmg.outFile, count);
 						}
 					}	
 				}
@@ -37,8 +37,6 @@ class Generator implements Runnable {
 					ArrayList<MolHelper2> extMolList = mol.addOneBond();
 					
 					for (MolHelper2  molecule : extMolList) {
-//						if (taskSize < 2*pmg.executorCount) taskSize ++;
-						pmg.startedTasks.getAndIncrement();
 						if (pmg.executor.getQueueSize() > pmg.executorCount*2) {
 							mol = molecule;
 							run();	// continue sequentially
@@ -75,7 +73,6 @@ class Generator implements Runnable {
 			} catch (CDKException e) {
 				e.printStackTrace();
 			}
-			pmg.startedTasks.decrementAndGet();
 			mol = null;
 		}
 		

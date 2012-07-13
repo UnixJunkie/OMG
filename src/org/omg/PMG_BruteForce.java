@@ -78,19 +78,19 @@ public class PMG_BruteForce{
 
 			System.out.println("PMG: Parallel processing of "+formula+ " started (using bliss as canonizer and with "+executorCount+" threads).");
 			System.out.print("Current atom order is: ");
-//			while (true) {
+			while (true) {
 			if (fragments == null)
 				nH = mol.initialize(formula);
 			else 
 				nH = mol.initialize(formula, fragments);
 			for (IAtom atom:mol.acontainer.atoms()) System.out.print(atom.getSymbol());
 			System.out.println();
-//			if (formula.equals("C4H7NO3")) {
-//				if (!mol.acontainer.getAtom(0).getSymbol().equals("C")) continue;
-//				if (!mol.acontainer.getAtom(4).getSymbol().equals("N")) continue;
-//			}
-//			break;
-//			}
+			if (formula.equals("C4H7NO3")) {
+				if (!mol.acontainer.getAtom(0).getSymbol().equals("O")) continue;
+				if (!mol.acontainer.getAtom(7).getSymbol().equals("C")) continue;
+			}
+			break;
+			}
 
 
 //			atomCount = mol.atomCount;
@@ -108,7 +108,6 @@ public class PMG_BruteForce{
 	}
 
 	private void generateTaskMol(MolHelper2 molecule) {
-		startedTasks.getAndIncrement();
 		executor.execute(new Generator(molecule));
 	}
 
@@ -137,6 +136,7 @@ public class PMG_BruteForce{
 		long before = System.currentTimeMillis();
 		PMG_BruteForce pmg = new PMG_BruteForce();
 		MolHelper2 mol = pmg.initialize(formula, fragments, out);
+		pmg.startedTasks.getAndIncrement();
 		pmg.generateTaskMol(mol);
 		pmg.finish();	// wait for all tasks to finish, and close the output files
 		pmg.shutdown();	// shutdown the executor service(s)
@@ -160,48 +160,31 @@ public class PMG_BruteForce{
 		@Override
 		public void run() {
 			try {
-//				if (depth == atomCount) 
-//					return;
-				if (mol.isComplete(satCheck, nH)){
-					if (mol.isConnected() && molSet.add(mol.canString)) {
-						mol_counter.incrementAndGet();
-						if(wFile){
-							mol.writeTo(outFile, mol_counter.get());
-						}
+				if (mol.isComplete(satCheck, nH) && mol.isConnected()) {
+					mol_counter.incrementAndGet();
+					if(wFile){
+						mol.writeTo(outFile, mol_counter.get());
 					}	
 				}
-				else{
-					if (molSet.add(mol.canString)){
-						// get all possible ways to add one bond to the molecule
-						ArrayList<MolHelper2> extMolList = mol.addOneBondNoCheck();
+				// get all possible ways to add one bond to the molecule
+				ArrayList<MolHelper2> extMolList = mol.addBigBond(); //addOneBondNoCheck(); // 
 
-						// recursively process all extended molecules
-						if (parallelExecution)
-						{	// make a parallel call
-							if (taskQueue.size() > executorCount*100) {
-								parallelExecution = false;
-								System.out.println("Disabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
-							}
-							for (MolHelper2  molecule : extMolList) {
-								generateTaskMol(molecule);
-							}
-						} else
-						{ // do a recursive call on the same thread 
-							if (taskQueue.size() < executorCount*2){
-								parallelExecution = true;
-								System.out.println("Enabling parallelism at task queue of "+taskQueue.size()+" with active count: "+executor.getActiveCount());
-							}
-							for (MolHelper2  molecule : extMolList) {
-								mol = molecule;
-								startedTasks.incrementAndGet();
-								run();
-							}
+				for (MolHelper2  molecule : extMolList) {
+					if (molSet.add(molecule.canString)){
+						startedTasks.getAndIncrement();
+						if (taskQueue.size() > executorCount*2) {
+							mol = molecule;
+							run();	// continue sequentially
+						} else {
+							generateTaskMol(molecule);
 						}
 					}
 				}
 			} catch (CloneNotSupportedException e){
 				e.printStackTrace();
 			} catch (CDKException e) {
+				e.printStackTrace();
+			} catch (Exception e){
 				e.printStackTrace();
 			}
 			startedTasks.decrementAndGet();
