@@ -6,23 +6,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
-import org.openscience.cdk.silent.SilentChemObjectBuilder;
+import org.openscience.cdk.tools.manipulator.BondManipulator;
 
 
 public class MolManipulator {
 
 	
-	   public static IAtomContainer getcanonical(IAtomContainer ac) throws CloneNotSupportedException{
+	   public static IAtomContainer getcanonical(IAtomContainer ac, String fragments) throws CloneNotSupportedException{
 
 		   IAtomContainer ac2 = ac.getBuilder().newInstance(IAtomContainer.class);
 			int vCount = ac.getAtomCount();
 			int arr1[] = new int[vCount*vCount]; 
-			int rr1[] = new int[vCount*vCount];
 			int lab[] = new int[vCount];
 			int lab1[] = new int[vCount];
 			int ptn[] = new int[vCount];
@@ -55,32 +53,20 @@ public class MolManipulator {
 			}
 			int ret[] = OMGJNI.getcanmultig(vCount, arr1, lab, ptn);
 
-			System.arraycopy(ret, 0, rr1, 0, vCount*vCount);
 			for (int i = 0; i < vCount;i++){
 				lab1[i] = ret[(vCount*vCount)+i];
 				ac2.addAtom(ac.getAtom(lab1[i]));
 			}
-
 			for (int i=0; i<vCount; i++){
 				for (int j=i+1; j<vCount; j++){
-					if(rr1[i*vCount+j]==1){
-						ac2.addBond(i, j, IBond.Order.SINGLE);
-						if(ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag")!= null){
-							ac2.getBond(ac2.getAtom(i), ac2.getAtom(j)).setProperty("BondINfrag", ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag"));
-						}
-					}	
-					else if(rr1[i*vCount+j]==2){
-						ac2.addBond(i, j, IBond.Order.DOUBLE);
-						if(ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag")!= null){
-							ac2.getBond(ac2.getAtom(i), ac2.getAtom(j)).setProperty("BondINfrag", ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag"));
+					if(ret[i*vCount+j]>0){
+						ac2.addBond(i, j,BondManipulator.createBondOrder(ret[i*vCount+j]));
+						if((fragments != null)){
+							if(ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag")!= null){
+								ac2.getBond(ac2.getAtom(i), ac2.getAtom(j)).setProperty("BondINfrag", ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag"));
+							}
 						}
 					}
-					else if(rr1[i*vCount+j]==3){
-						ac2.addBond(i, j, IBond.Order.TRIPLE);
-						if(ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag")!= null){
-							ac2.getBond(ac2.getAtom(i), ac2.getAtom(j)).setProperty("BondINfrag", ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag"));
-						}
-					}					
 				}
 			}	
 
@@ -195,7 +181,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 		bondCounts[ac.getAtomNumber(b.getAtom(1))] += b.getOrder().ordinal()+1;
 	}
 	ArrayList<int[]> bondList = new ArrayList<int[]>();		
-	
+
 	for (int i = 0; i < vCount; i++){
 		if (maxBondTable.get(ac.getAtom(i).getSymbol()) == bondCounts[i]) continue;
 		for (int j = i+1; j < vCount; j++){

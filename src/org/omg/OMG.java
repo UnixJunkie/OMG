@@ -1,13 +1,11 @@
 package org.omg;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,7 +14,6 @@ import java.util.Map;
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
-import org.openscience.cdk.config.AtomTypeFactory;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.graph.ConnectivityChecker;
 import org.openscience.cdk.interfaces.IAtom;
@@ -26,13 +23,13 @@ import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IChemSequence;
 import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.io.MDLV2000Reader;
-import org.openscience.cdk.io.MDLV2000Writer;
 import org.openscience.cdk.io.SDFWriter;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
+import org.openscience.cdk.tools.manipulator.BondManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 /**
@@ -44,7 +41,7 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 public class OMG{
 	SDFWriter outFile;
 	HashMap<String, Byte> globalmap;
-	int mol_counter;
+	public static int mol_counter;
 	int maxOpenings;
 	private int nH;
 	private static boolean wfile = false;
@@ -190,7 +187,7 @@ public class OMG{
 					e1.printStackTrace();
 				}
 			}
-			acontainer = MolManipulator.getcanonical(acontainer);
+			acontainer = MolManipulator.getcanonical(acontainer, fragments);
 		}		
 
 		mol_counter = 0;
@@ -201,6 +198,7 @@ public class OMG{
 			e.printStackTrace();
 		}
 		try {
+
 			satCheck = new SaturationChecker();
 			conCheck = new ConnectivityChecker();
 			globalmap = new HashMap<String, Byte>();
@@ -294,17 +292,8 @@ public class OMG{
 						m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.TRIPLE);
 					}
 				}
-//				else if(bondAdd.getOrder() == IBond.Order.SINGLE){
-//					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.DOUBLE);
-//				}
-//				else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
-//					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.TRIPLE);
-//				}
-//				else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
-//					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.QUADRUPLE);					
-//				}
 				// end add bond
-				IAtomContainer canonM_ext = MolManipulator.getcanonical(m_ext);
+				IAtomContainer canonM_ext = MolManipulator.getcanonical(m_ext,fragments);
 			
 				String canstr =  MolManipulator.array2string(MolManipulator.mol2array(canonM_ext));
 
@@ -339,19 +328,18 @@ public class OMG{
 					}
 					lastBond[0] = m_ext.getAtomNumber(AtomContainerManipulator.getAtomById(m_ext, lastBondID[0]));
 					lastBond[1] = m_ext.getAtomNumber(AtomContainerManipulator.getAtomById(m_ext, lastBondID[1]));
-
 					bondAdd = m_ext.getBond(m_ext.getAtom(lastBond[0]),m_ext.getAtom(lastBond[1]));
-					if(bondAdd.getOrder() == IBond.Order.SINGLE){
+					ord = bondAdd.getOrder();
+					if(ord == IBond.Order.SINGLE){
 						m_ext.removeBond(bondAdd);
 					}
-					else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
+					else if(ord == IBond.Order.DOUBLE){
 						bondAdd.setOrder(IBond.Order.SINGLE);
 					}
-					else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
+					else if(ord == IBond.Order.TRIPLE){
 						bondAdd.setOrder(IBond.Order.DOUBLE);
-					}
-				
-					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){			
+					}				
+					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext, fragments))||(acontainer.getBondCount()==0)){			
 						generateMol(canonM_ext, canstr, false);	
 					}	
 				}
