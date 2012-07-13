@@ -11,10 +11,12 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
+import org.openscience.cdk.config.AtomTypeFactory;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.graph.ConnectivityChecker;
 import org.openscience.cdk.interfaces.IAtom;
@@ -22,8 +24,10 @@ import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IChemSequence;
+import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.io.MDLV2000Writer;
+import org.openscience.cdk.io.SDFWriter;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.SaturationChecker;
@@ -38,15 +42,29 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
  * @author Julio Peironcely
  */
 public class OMG{
-	BufferedWriter outFile;
+	SDFWriter outFile;
 	HashMap<String, Byte> globalmap;
 	int mol_counter;
+	int maxOpenings;
 	private int nH;
 	private static boolean wfile = false;
 	private static String fragments = null;
 	private CDKHydrogenAdder hAdder;
 	private CDKAtomTypeMatcher matcher;
 	private SaturationChecker satCheck;
+	private static ConnectivityChecker conCheck;
+	private static Map<String, Double> valencetable; 
+	static {
+
+		// initialize the table
+		valencetable = new HashMap<String, Double>();
+		// TODO: read atom symbols from CDK
+		valencetable.put("C", new Double(4));
+		valencetable.put("N", new Double(5));
+		valencetable.put("O", new Double(2));
+		valencetable.put("S", new Double(6));
+		valencetable.put("P", new Double(5));
+	}
 	public static void main(String[] args) throws IOException{
 
 		OMG gen = new OMG();
@@ -111,21 +129,15 @@ public class OMG{
 			System.err.println("Provide at least an elemental composition. Type OMG.jar -h for help");
 			System.exit(1);
 		}
-
-		
-
-			try {
-				gen.initializeMolecule(formula,fragments, out);
-			} catch (CDKException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (CloneNotSupportedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-
-
+		try {
+			gen.initializeMolecule(formula,fragments, out);
+		} catch (CDKException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (CloneNotSupportedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	public OMG(){
 		matcher = CDKAtomTypeMatcher.getInstance(SilentChemObjectBuilder.getInstance());
@@ -137,29 +149,31 @@ public class OMG{
 //		do{
 		acontainer = MolecularFormulaManipulator.getAtomContainer(
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
-//		}while(!acontainer.getAtom(0).getSymbol().equals("S"));
+//		}while(!acontainer.getAtom(0).getSymbol().equals("C"));
 		nH = 0;
 		List<IAtom> listcont = new ArrayList<IAtom>();
 		int atom_counter = 0;
+		String symbol = null;
 		for(IAtom atom: acontainer.atoms()){
-			if(atom.getSymbol().equals("H")){
+			symbol = atom.getSymbol();
+			if(symbol.equals("H")){
 				nH++;
+				maxOpenings--;
 				listcont.add(atom);
 			}
 			else{
-
+				maxOpenings += valencetable.get(symbol);
 				atom.setID("a"+atom_counter);
 				atom.setFlag(1, false);
 				atom_counter++;
+				System.out.print(atom.getSymbol());
 			}
 		}
+		System.out.println();
 		for(IAtom atom: listcont){
 			acontainer.removeAtom(atom);
 		}
 		
-
-		for(IAtom atom: acontainer.atoms()) System.out.print(atom.getSymbol());
-		System.out.println();
 		if(fragments != null){
 			InputStream ins = new BufferedInputStream(new FileInputStream(fragments));
 			MDLV2000Reader reader = new MDLV2000Reader(ins);
@@ -176,29 +190,21 @@ public class OMG{
 					e1.printStackTrace();
 				}
 			}
-
 			acontainer = MolManipulator.getcanonical(acontainer);
 		}		
 
-
-
-
 		mol_counter = 0;
 		try {
-			outFile = new BufferedWriter(new FileWriter(output));
+			outFile = new SDFWriter(new FileWriter(output));
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		try {
 			satCheck = new SaturationChecker();
-
-			//			}
+			conCheck = new ConnectivityChecker();
 			globalmap = new HashMap<String, Byte>();
-
-
-				generateMol(acontainer, null);
-			
+			generateMol(acontainer, null, false);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -212,94 +218,94 @@ public class OMG{
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
 	}
 
-
-
-
-
-
-	private void generateMol(IAtomContainer acontainer, String canstr2) throws CloneNotSupportedException, CDKException, IOException {
+	private void generateMol(IAtomContainer acontainer, String canstr2, boolean extraAtoms) throws CloneNotSupportedException, CDKException, IOException {
 		/*We check that the atoms are connected in the same molecules
 		 * this is, they are not separated fragments*/
 		/*We add hydrogens in order to check if the molecule is saturated.
 		 * We will accept the molecule if the number of hydrogens necessary to saturate 
 		 * is the same as the hydrogens in the original formula*/
 		IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
-
-		boolean isComplete ;
+		int bondCount = 0;
+		boolean isComplete = false;
 		try {
 			for (IAtom atom : acprotonate.atoms()) {
-//				IAtomType type = CDKAtomTypeMatcher.getInstance(acontainer.getBuilder()).findMatchingAtomType(acprotonate, atom);
 				IAtomType type = matcher.findMatchingAtomType(acprotonate, atom);
-
 				AtomTypeManipulator.configure(atom, type);
 			}
-//			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-//			CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
 			hAdder.addImplicitHydrogens(acprotonate);
-			isComplete = satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
+			if(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH){
+				isComplete = satCheck.isSaturated(acprotonate);
+			}
 		} catch (IllegalArgumentException iae){
 			isComplete = false;
 		}
-		if(isComplete){
-			if(ConnectivityChecker.partitionIntoMolecules(acontainer).getAtomContainerCount() == 1){
-			if(fragments != null){
-				if(!globalmap.containsKey(canstr2)){
-					globalmap.put(canstr2, null);
-					if(wfile){
-						StringWriter writer = new StringWriter();
-						MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-						mdlWriter.write(acprotonate);
-						outFile.write(writer.toString());
-						outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
-					}
+		if(isComplete && !extraAtoms){
+			if(conCheck.partitionIntoMolecules(acprotonate).getAtomContainerCount() == 1){
+				if(fragments != null){
+					if(!globalmap.containsKey(canstr2)){
+						globalmap.put(canstr2, null);
+						mol_counter++;
+						if(wfile){
+							acprotonate.setProperty("Id",mol_counter);
+							acprotonate.setProperty("can_string",canstr2);
+							outFile.write(acprotonate);
+						}		
+					}				
+				}else{
 					mol_counter++;
-
+					if(wfile){
+						acprotonate.setProperty("Id",mol_counter);
+						acprotonate.setProperty("can_string",canstr2);
+						outFile.write(acprotonate);
+					}
 				}
-			
-			}else{
-				if(wfile){
-					StringWriter writer = new StringWriter();
-					MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-					mdlWriter.write(acprotonate);
-					outFile.write(writer.toString());
-					outFile.write("> <Id>\n"+(mol_counter+1)+"\n\n> <can_string>\n"+canstr2+"\n\n$$$$\n");
-				}
-				mol_counter++;
-			}
 			}	
-
+			for (IBond b:acprotonate.bonds()) {
+				bondCount += b.getOrder().ordinal()+1;
+			}
+			if (maxOpenings>bondCount*2) {
+				generateMol(acontainer, canstr2, true);				
+			}
 		}
 		else{
-			ArrayList<int[]> extBondlist = null;
-			extBondlist = MolManipulator.extendMol(acontainer);
+			ArrayList<int[]> extBondlist = MolManipulator.extendMol(acontainer);
 			HashMap<String, Byte> map = new HashMap<String, Byte>();
-			
+			IBond bondAdd = null;
+			IAtomContainer m_ext = null;
+			Order ord = null;
 			for(int[] bond : extBondlist){
-				IAtomContainer m_ext = (IAtomContainer) acontainer.clone();
+				ord = null;
+				m_ext = (IAtomContainer) acontainer.clone();
 
 				//Only one object bond is used, and recycled at every time we use it
-				IBond bondAdd = m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1]));
+				bondAdd = m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1]));
 				if(bondAdd == null){					
 					m_ext.addBond(bond[0], bond[1], IBond.Order.SINGLE);
 				}
-				else if(bondAdd.getOrder() == IBond.Order.SINGLE){
-					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.DOUBLE);
+				else{
+					ord = bondAdd.getOrder();
+					if(ord == IBond.Order.SINGLE){
+						m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.DOUBLE);
+					}
+					else if(ord == IBond.Order.DOUBLE){
+						m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.TRIPLE);
+					}
 				}
-				else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
-					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.TRIPLE);
-				}
-				else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
-					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.QUADRUPLE);					
-				}
-
+//				else if(bondAdd.getOrder() == IBond.Order.SINGLE){
+//					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.DOUBLE);
+//				}
+//				else if(bondAdd.getOrder() == IBond.Order.DOUBLE){
+//					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.TRIPLE);
+//				}
+//				else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
+//					m_ext.getBond(m_ext.getAtom(bond[0]), m_ext.getAtom(bond[1])).setOrder(IBond.Order.QUADRUPLE);					
+//				}
 				// end add bond
 				IAtomContainer canonM_ext = MolManipulator.getcanonical(m_ext);
-
-		        
+			
 				String canstr =  MolManipulator.array2string(MolManipulator.mol2array(canonM_ext));
 
 				if(!map.containsKey(canstr)){
@@ -308,6 +314,7 @@ public class OMG{
 					boolean lastNotInFrag = false;
 					String lastBondID[] = new String[2];
 					int i = 0;
+					int[] lastBond = new int[2];
 					while((!lastNotInFrag)&&(canonM_ext.getBondCount() > i)){
 						i++;
 						lastBondID[0] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(0).getID();
@@ -329,21 +336,10 @@ public class OMG{
 							canonM_ext.getBond(canonM_ext.getBondCount()-i).setProperty("BondINfrag", ""+canonM_ext.getBond(canonM_ext.getBondCount()-i).getOrder());
 
 						}
-						else if((bondAdd.getProperty("BondINfrag") == IBond.Order.TRIPLE)&&
-								(bondAdd.getOrder() == IBond.Order.QUADRUPLE)){
-							lastNotInFrag = false;
-							canonM_ext.getBond(canonM_ext.getBondCount()-i).setProperty("BondINfrag", ""+canonM_ext.getBond(canonM_ext.getBondCount()-i).getOrder());
-
-						}	
 					}
+					lastBond[0] = m_ext.getAtomNumber(AtomContainerManipulator.getAtomById(m_ext, lastBondID[0]));
+					lastBond[1] = m_ext.getAtomNumber(AtomContainerManipulator.getAtomById(m_ext, lastBondID[1]));
 
-					int[] lastBond = new int[2];
-					for(IAtom atom : m_ext.atoms()){
-						if(atom.getID().equals(lastBondID[0]))
-							lastBond[0]=m_ext.getAtomNumber(atom);
-						if(atom.getID().equals(lastBondID[1]))
-							lastBond[1] = m_ext.getAtomNumber(atom);						
-					}
 					bondAdd = m_ext.getBond(m_ext.getAtom(lastBond[0]),m_ext.getAtom(lastBond[1]));
 					if(bondAdd.getOrder() == IBond.Order.SINGLE){
 						m_ext.removeBond(bondAdd);
@@ -354,20 +350,14 @@ public class OMG{
 					else if(bondAdd.getOrder() == IBond.Order.TRIPLE){
 						bondAdd.setOrder(IBond.Order.DOUBLE);
 					}
-					else if(bondAdd.getOrder() == IBond.Order.QUADRUPLE){
-						bondAdd.setOrder(IBond.Order.TRIPLE);
-					}
-					
-					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){
-			
-						generateMol(canonM_ext, canstr);	
+				
+					if(MolManipulator.aresame(acontainer, MolManipulator.getcanonical(m_ext))||(acontainer.getBondCount()==0)){			
+						generateMol(canonM_ext, canstr, false);	
 					}	
 				}
 			}		
 		}
-
 	}
-
 
 	public int getFinalCount() {
 		// TODO Auto-generated method stub

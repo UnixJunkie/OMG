@@ -16,7 +16,7 @@ import org.openscience.cdk.silent.SilentChemObjectBuilder;
 
 public class MolManipulator {
 
-	private static CDKAtomTypeMatcher matcher = CDKAtomTypeMatcher.getInstance(SilentChemObjectBuilder.getInstance());	
+	
 	   public static IAtomContainer getcanonical(IAtomContainer ac) throws CloneNotSupportedException{
 
 		   IAtomContainer ac2 = ac.getBuilder().newInstance(IAtomContainer.class);
@@ -28,6 +28,7 @@ public class MolManipulator {
 			int ptn[] = new int[vCount];
 			
 			int c = 0;
+			IBond bond = null;
 			for (int i=0; i<vCount; i++){
 				lab[i] = i;
 				if(i == vCount-1){
@@ -42,20 +43,12 @@ public class MolManipulator {
 						ptn[i]=0;
 					}
 				}
+				bond = null;
 				for (int j=0; j<vCount; j++){
-					IBond bond = ac.getBond(ac.getAtom(i), ac.getAtom(j));
+					bond = ac.getBond(ac.getAtom(i), ac.getAtom(j));
 					if(bond == null){}
-					else if(bond.getOrder() == IBond.Order.SINGLE){
-						arr1[c] = 1;
-					}
-					else if(bond.getOrder() == IBond.Order.DOUBLE){
-						arr1[c] = 2;
-					}
-					else if(bond.getOrder() == IBond.Order.TRIPLE){
-						arr1[c] = 3;
-					}
-					else if(bond.getOrder() == IBond.Order.QUADRUPLE){
-						arr1[c] = 4;
+					else{
+						arr1[c] = bond.getOrder().ordinal() + 1;
 					}
 					c++;
 				}
@@ -87,14 +80,7 @@ public class MolManipulator {
 						if(ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag")!= null){
 							ac2.getBond(ac2.getAtom(i), ac2.getAtom(j)).setProperty("BondINfrag", ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag"));
 						}
-					}
-					else if(rr1[i*vCount+j]==4){
-						ac2.addBond(i, j, IBond.Order.QUADRUPLE);
-						if(ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag")!= null){
-							ac2.getBond(ac2.getAtom(i), ac2.getAtom(j)).setProperty("BondINfrag", ac.getBond(ac.getAtom(lab1[i]), ac.getAtom(lab1[j])).getProperty("BondINfrag"));
-						}
-					}
-					
+					}					
 				}
 			}	
 
@@ -214,31 +200,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 		if (maxBondTable.get(ac.getAtom(i).getSymbol()) == bondCounts[i]) continue;
 		for (int j = i+1; j < vCount; j++){
 			if (maxBondTable.get(ac.getAtom(j).getSymbol()) == bondCounts[j]) continue;
-			IBond bond = ac.getBond(ac.getAtom(i), ac.getAtom(j));
-			IAtomContainer acCloned = (IAtomContainer) ac.clone();
-			if(bond == null){					
-				acCloned.addBond(i, j, IBond.Order.SINGLE);
-			}
-			else if(bond.getOrder() == IBond.Order.SINGLE){
-				acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).setOrder(IBond.Order.DOUBLE);
-			}
-			else if(bond.getOrder() == IBond.Order.DOUBLE){
-				acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).setOrder(IBond.Order.TRIPLE);
-			}
-			else if(bond.getOrder() == IBond.Order.TRIPLE){
-				acCloned.getBond(acCloned.getAtom(i), acCloned.getAtom(j)).setOrder(IBond.Order.QUADRUPLE);
-			}
-			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
-				continue;
-			}
-
-//			IAtomType type1 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(i));
-//		    IAtomType type2 = matcher.findMatchingAtomType(acCloned,acCloned.getAtom(j));
-//
-//		    if((type1 != null) && (type2 != null)){
-
-					bondList.add(new int[] { i, j});
-//				}
+					bondList.add(new int[] { i, j});	
 			}		   			   
 		}			  
 	return bondList;
@@ -261,18 +223,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 		int[] ar = new int[aCount*aCount];
 		for(IBond bond : ac.bonds()){
 			//we read only the bonds and store the bond degree as ar[i*aCount+j]
-			if(bond.getOrder() == IBond.Order.SINGLE){
-				ar[ac.getAtomNumber(bond.getAtom(0)) * aCount + ac.getAtomNumber(bond.getAtom(1))] = 1;
-			}
-			else if(bond.getOrder() == IBond.Order.DOUBLE){
-				ar[ac.getAtomNumber(bond.getAtom(0)) * aCount + ac.getAtomNumber(bond.getAtom(1))] = 2;
-			}
-			else if(bond.getOrder() == IBond.Order.TRIPLE){
-				ar[ac.getAtomNumber(bond.getAtom(0)) * aCount + ac.getAtomNumber(bond.getAtom(1))] = 3;
-			}
-			else if(bond.getOrder() == IBond.Order.QUADRUPLE){
-				ar[ac.getAtomNumber(bond.getAtom(0)) * aCount + ac.getAtomNumber(bond.getAtom(1))] = 4;
-			}				
+			ar[ac.getAtomNumber(bond.getAtom(0)) * aCount + ac.getAtomNumber(bond.getAtom(1))] = bond.getOrder().ordinal()+1;		
 		}	
 		return ar;
 	}
@@ -327,48 +278,6 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 
 		return acontainer;
 	}
-
-	public static IBond getlastbond(IAtomContainer canonM_ext,
-			IAtomContainer m_ext) throws CloneNotSupportedException {
-		// Find in canonical the last bond that does not belong to the prescribed substructure
-		boolean lastNotInFrag = false;
-		String lastBondID[] = new String[2];
-		int i = 1;
-		while(!lastNotInFrag){
-			lastBondID[0] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(0).getID();
-			lastBondID[1] = canonM_ext.getBond(canonM_ext.getBondCount()-i).getAtom(1).getID();
-			IBond bondcheck = canonM_ext.getBond(canonM_ext.getBondCount()-i);
-//			we remove select the last bond if it was not in the fragment, or if it was in the fragment
-//			but its degree augmented
-			if(bondcheck.getProperty("BondINfrag")== null){
-				lastNotInFrag = true;
-			} 
-			else if((bondcheck.getProperty("BondINfrag") == IBond.Order.SINGLE)&&
-					(bondcheck.getOrder() == IBond.Order.DOUBLE)){
-				lastNotInFrag = true;
-			}
-			else if((bondcheck.getProperty("BondINfrag") == IBond.Order.DOUBLE)&&
-					(bondcheck.getOrder() == IBond.Order.TRIPLE)){
-				lastNotInFrag = true;
-			}
-			else if((bondcheck.getProperty("BondINfrag") == IBond.Order.TRIPLE)&&
-					(bondcheck.getOrder() == IBond.Order.QUADRUPLE)){
-				lastNotInFrag = true;
-			}	
-			i++;
-		}
-		IAtomContainer m_ext_e = (IAtomContainer) m_ext.clone();
-		int[] lastBond = new int[2];
-		for(IAtom atom : m_ext_e.atoms()){
-			if(atom.getID().equals(lastBondID[0]))
-				lastBond[0]=m_ext_e.getAtomNumber(atom);
-			if(atom.getID().equals(lastBondID[1]))
-				lastBond[1] = m_ext_e.getAtomNumber(atom);
-		}
-		IBond bondremove = m_ext_e.getBond(m_ext_e.getAtom(lastBond[0]),m_ext_e.getAtom(lastBond[1]));
-		return bondremove;
-	}
-
 
 	private static Map<String, Double> maxBondTable; 
 	static {
