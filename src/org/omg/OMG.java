@@ -61,6 +61,9 @@ public class OMG{
 		valencetable.put("O", new Double(2));
 		valencetable.put("S", new Double(6));
 		valencetable.put("P", new Double(5));
+		valencetable.put("F", new Double(1));
+		valencetable.put("I", new Double(1));
+		valencetable.put("Cl", new Double(1));
 	}
 	public static void main(String[] args) throws IOException{
 
