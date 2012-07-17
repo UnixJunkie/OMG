@@ -279,6 +279,7 @@ public static  ArrayList<int[]> extendMol(IAtomContainer ac) throws CloneNotSupp
 		maxBondTable.put("F", new Double(1));
 		maxBondTable.put("I", new Double(1));
 		maxBondTable.put("Cl", new Double(1));
+		maxBondTable.put("Br", new Double(1));
 	}
 
 }
