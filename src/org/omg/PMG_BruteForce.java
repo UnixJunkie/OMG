@@ -54,7 +54,7 @@ public class PMG_BruteForce{
 	private SaturationChecker satCheck = new SaturationChecker();
 	private boolean parallelExecution = true;
 
-	private static int executorCount=6;
+	private static int executorCount=Runtime.getRuntime().availableProcessors();
 	ThreadPoolExecutor executor;
 	LinkedBlockingQueue<Runnable> taskQueue;
 	AtomicLong startedTasks;
@@ -167,7 +167,7 @@ public class PMG_BruteForce{
 					}	
 				}
 				// get all possible ways to add one bond to the molecule
-				ArrayList<MolHelper2> extMolList = mol.addBigBond(); //addOneBondNoCheck(); // 
+				ArrayList<MolHelper2> extMolList = mol.addOneBond(); //BigBond(); //addOneBondNoCheck(); // 
 
 				for (MolHelper2  molecule : extMolList) {
 					if (molSet.add(molecule.canString)){
