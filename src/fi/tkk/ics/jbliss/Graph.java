@@ -11,6 +11,8 @@ import java.io.PrintStream;
 import java.util.*;
 
 import org.omg.MolHelper;
+import org.omg.MolProcessor;
+import org.omg.tools.Atom;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
@@ -20,6 +22,15 @@ public class Graph {
 	public int[] orbitRep;
 	private int atomCount;
 
+	public Graph() {
+		throw new UnsupportedOperationException("Use the Graph constructor that takes atomCount as parameter.");
+	}
+	
+	public Graph(int atomCount) {
+		super();
+		this.atomCount = atomCount;
+		orbitRep = new int[atomCount];
+	}
 	/* The internal JNI interface to true bliss */
 	private native long create();
 	private native void destroy(long true_bliss);
@@ -51,6 +62,7 @@ public class Graph {
 
 	
 	public String canonize(char[] atoms, char[] bonds) {
+		System.out.println("Whatever");
 		// create a bliss instance for calculating the canonical labeling
 		long bliss = create();
 		assert bliss != 0;
@@ -128,6 +140,32 @@ public class Graph {
 
 		return cf;
 	}
+	
+	public int[] canonize(MolProcessor mol, boolean report) {
+		for (int i=0; i<atomCount; i++){
+			orbitRep[i] = i;	// start with no symmetry
+		}
+		// create a bliss instance for calculating the canonical labeling
+		long bliss = create();
+		assert bliss != 0;
+		
+		for (Atom a:mol.atoms){
+			_add_vertex(bliss, colorTable.get(a.symbol));
+		}
+		for (int l=0; l<atomCount; l++)
+			for (int r=l+1; r<atomCount; r++) 
+				for (int o=0; o<mol.adjacency[l*atomCount+r]; o++) {
+					int vid = _add_vertex(bliss, bondColor);
+					_add_edge(bliss, l, vid);
+					_add_edge(bliss, r, vid);				
+				}
+		int[] cf = _canonical_labeling(bliss, report?1:null); 
+		destroy(bliss);
+
+		return cf;
+	}
+
+		
 	
 	/**
 	 * @param atomContainer
