@@ -26,6 +26,7 @@ public class PMG7{
 	
 	private static class Generator extends RecursiveTask<Long> {
 		final MolHelper2 mol;
+		static SaturationChecker satCheck = new SaturationChecker();
 
 		public Generator(final MolHelper2 mol) {
 			super();
@@ -36,7 +37,7 @@ public class PMG7{
 		protected Long compute() {
 			long count = 0;
 			try {
-				if (mol.isComplete(/*pmg.satCheck,*/ nH) && mol.isConnected()) {
+				if (mol.isComplete(satCheck, nH) && mol.isConnected()) {
 //					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
 					count = 1;
 					if(PMG.wFile){
