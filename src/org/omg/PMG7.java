@@ -43,7 +43,6 @@ import org.openscience.cdk.tools.SaturationChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
-import org.omg.tools.*;
 /**
  * Open Molecule Generation
  * The main class collecting parameters and setting global objects
