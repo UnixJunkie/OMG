@@ -133,10 +133,10 @@ public class MolHelper2 {
 	}
 	
 	private boolean isNotOrdered() {
-		if (!acontainer.getAtom(0).getSymbol().equals("S")) return true;
-		if (!acontainer.getAtom(1).getSymbol().equals("O")) return true;
-		if (!acontainer.getAtom(3).getSymbol().equals("N")) return true;
-		if (!acontainer.getAtom(4).getSymbol().equals("C")) return true;
+//		if (!acontainer.getAtom(0).getSymbol().equals("S")) return true;
+//		if (!acontainer.getAtom(1).getSymbol().equals("O")) return true;
+//		if (!acontainer.getAtom(3).getSymbol().equals("N")) return true;
+		if (!acontainer.getAtom(0).getSymbol().equals("C")) return true;
 		return false;
 	}
 
