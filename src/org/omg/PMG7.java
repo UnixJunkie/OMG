@@ -41,7 +41,7 @@ public class PMG7{
 //					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
 					count = 1;
 					if(PMG.wFile){
-						mol.writeMol(outFile, count);
+						mol.writeMol(outFile);
 					}
 				}
 				ArrayList<MolHelper2> extMolList = mol.addOneBond();
@@ -63,7 +63,6 @@ public class PMG7{
 	}
 	
 	long mol_counter = 0;
-	SaturationChecker satCheck = new SaturationChecker();
 	boolean parallelExecution = true;
 
 	static int nH;
