@@ -302,6 +302,12 @@ public class MolHelper2 {
 		}
 	}
 	
+	static int counter = 0;
+	public void writeMol(BufferedWriter outFile) {
+		writeMol(outFile, counter++);
+	}
+
+	
 	/**
 	 * It checks all possible ways to add one bond to a molecule, while considering the canonical augmentation of the corresponding graph.
 	 * canAug cannot be true if bigStep is true (this is why this method is made private)
