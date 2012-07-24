@@ -200,7 +200,6 @@ public class Graph {
 		
 		try {
 			String dirName = new File(".").getCanonicalPath();
-			System.out.println("Trying to open: "+dirName+"/"+blissName);
 			System.load(dirName+"/"+blissName);
 		} catch (IOException e) {
 			System.err.println("Could not get the current directory.");
