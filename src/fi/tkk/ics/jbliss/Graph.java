@@ -7,7 +7,10 @@
 
 package fi.tkk.ics.jbliss;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URL;
 import java.util.*;
 
 import org.omg.MolHelper;
@@ -189,8 +192,25 @@ public class Graph {
 
 	static {
 		/* Load the C++ library including the true bliss and
-		 * the JNI interface code */
-		System.loadLibrary("jbliss");
+		 * the JNI interface code */   
+
+		String osName = System.getProperty("os.name");
+		String osArch = System.getProperty("os.arch");
+		String blissName = "bliss"+osName+osArch+".so";
+		
+		try {
+			String dirName = new File(".").getCanonicalPath();
+			System.out.println("Trying to open: "+dirName+"/"+blissName);
+			System.load(dirName+"/"+blissName);
+		} catch (IOException e) {
+			System.err.println("Could not get the current directory.");
+			e.printStackTrace();
+			System.exit(11);
+		} catch (UnsatisfiedLinkError ule2){
+			System.err.println("Could not load the jbliss library for "+osName+" "+osArch);
+			System.err.println("The file "+blissName+" should be available in the current directory.");
+			System.exit(10);
+		}
 		
 		// initialize the colorTable
 		colorTable = new HashMap<>();
