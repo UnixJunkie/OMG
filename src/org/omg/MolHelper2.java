@@ -314,7 +314,7 @@ public class MolHelper2 {
 	 */
 	private ArrayList<MolHelper2> addBond(boolean canAug, boolean bigStep) throws CloneNotSupportedException, CDKException{
 		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
-		if (maxOpenings<=acontainer.getBondCount()*2) return extMolList;	// the molecule is already saturated!
+		if (maxOpenings<=getBondCount()*2) return extMolList;	// the molecule is already saturated!
 		
     	Set<String> visited = new HashSet<>();
 //		int vCount = acontainer.getAtomCount();
@@ -389,6 +389,13 @@ public class MolHelper2 {
 		}
 		return extMolList;
 	}
+
+	private int getBondCount() {
+		int count = 0;
+		for (IBond bond : acontainer.bonds()) count += bond.getOrder().ordinal()+1;
+		return count;
+	}
+
 
 	ArrayList<MolHelper2> addOneBond() throws CloneNotSupportedException, CDKException{
 		return addBond(true, false);
