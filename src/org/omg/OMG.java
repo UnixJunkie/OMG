@@ -127,10 +127,10 @@ public class OMG{
 		}		
 		for (IAtom atom:acontainer.atoms()) System.out.print(atom.getSymbol());
 		System.out.println();
-		if (formula.equals("C4H7NO3")) {
-			if (!acontainer.getAtom(0).getSymbol().equals("N")) continue;
-			if (!acontainer.getAtom(7).getSymbol().equals("O")) continue;
-		}
+//		if (formula.equals("C4H7NO3")) {
+			if (!acontainer.getAtom(0).getSymbol().equals("C")) continue;
+//			if (!acontainer.getAtom(2).getSymbol().equals("N")) continue;
+//		}
 		break;
 		}
 
@@ -215,11 +215,11 @@ public class OMG{
 			}	
 
 //			hAdder = null;
-			acprotonate = null;
-			acontainer = null;
-			return;
+//			acprotonate = null;
+//			acontainer = null;
+//			return;
 		}
-		else{
+//		else{
 
 			ArrayList<int[]> extBondlist = MolManipulator.extendMol(acontainer);
 
@@ -309,8 +309,8 @@ public class OMG{
 					}	
 				}
 			}		
-			return;				
-		}
+//			return;				
+//		}
 
 	}
 
