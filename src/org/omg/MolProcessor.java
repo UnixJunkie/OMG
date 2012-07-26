@@ -18,7 +18,6 @@ import org.openscience.cdk.interfaces.IBond;
 import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
-	static PMG pmg;
 	public static Atom[] atoms;
 	static int nH;
 	int maxOpenings = 0;
@@ -38,10 +37,9 @@ public class MolProcessor implements Runnable{
 		graph = new Graph(atoms.length);
 	}
 
-	public MolProcessor(ArrayList<String> atomSymbols, PMG p){
+	public MolProcessor(ArrayList<String> atomSymbols){
 		int nH=0;
 		int atomCount=0;
-		pmg = p;
 		for (String symbol:atomSymbols){
 			if (symbol.equals("H")) {
 				nH++;
@@ -178,9 +176,9 @@ public class MolProcessor implements Runnable{
 	public void run() {
 		if (isComplete() && isConnected()) {
 			//					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
-			long currentCount = pmg.mol_counter.incrementAndGet();
+			long currentCount = PMG.molCounter.incrementAndGet();
 			if(PMG.wFile){
-				writeMol(pmg.outFile, currentCount);
+				writeMol(PMG.outFile, currentCount);
 			}
 		}	
 
@@ -188,10 +186,10 @@ public class MolProcessor implements Runnable{
 		ArrayList<MolProcessor> extMolList = addOneBond();
 
 		for (MolProcessor molecule : extMolList) {
-			if (pmg.executor.getQueueSize() > pmg.executorCount*2) {
+			if (PMG.taskQueue.size() > PMG.executorCount*2) {
 				molecule.run();	// continue sequentially
 			} else {
-				pmg.generateParallelTask(molecule, true);
+				PMG.executor.execute(molecule);
 			}
 		}
 	}
