@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -18,27 +19,31 @@ import org.openscience.cdk.interfaces.IBond;
 import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
-	public static Atom[] atoms;
-	static int nH;
-	int maxOpenings = 0;
-	String canString="";
-	public int[] adjacency;
-	int bondsCount=0;
-	int []perm;
-	Graph graph;
+	public final Atom[] atoms;
+	final int nH;
+	final int maxOpenings;
+	final String canString;
+	final Graph graph;
+	public int[][] adjacency;
+//	int []perm;
 	
-	public MolProcessor(int maxOpenings, String canString, int[] adjacency,	int bondsCount, int []perm) {
-		super();
+	public MolProcessor(Atom[] atoms, int nH, int maxOpenings,
+			String canString, int[][] adjacency) {
+		this.atoms = atoms;
+		this.nH = nH;
 		this.maxOpenings = maxOpenings;
 		this.canString = canString;
-		this.adjacency = adjacency.clone();
-		this.bondsCount = bondsCount;
-		this.perm = perm;
 		graph = new Graph(atoms.length);
+//		this.adjacency = adjacency.clone();
+		this.adjacency = new int [atoms.length][atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++)
+				this.adjacency[i][j] = adjacency[i][j];
 	}
 
 	public MolProcessor(ArrayList<String> atomSymbols){
 		int nH=0;
+		int maxOpenings=0;
 		int atomCount=0;
 		for (String symbol:atomSymbols){
 			if (symbol.equals("H")) {
@@ -54,10 +59,12 @@ public class MolProcessor implements Runnable{
 			maxOpenings += atoms[atomCount].maxValence;
 			atomCount++;
 		}
-		adjacency = new int [atomCount * atomCount];
+		adjacency = new int [atomCount][atomCount];
 		graph = new Graph(atomCount);
-		perm = new int[atomCount];
-		for (int i=0; i<atomCount; i++) perm[i] = i;
+		this.maxOpenings = maxOpenings;
+		canString = "";
+//		perm = new int[atomCount];
+//		for (int i=0; i<atomCount; i++) perm[i] = i;
 	}
 
 
@@ -68,9 +75,8 @@ public class MolProcessor implements Runnable{
 			return openings == nH;
 		else {
 			int bondSum = 0;
-			int base = perm[atomNum]*atoms.length;
-			for (int i=base;i<base+atoms.length;i++)
-				bondSum += adjacency[i];
+			for (int i=0;i<atoms.length;i++)
+				bondSum += adjacency[atomNum][i];
 			for (Integer valence:atoms[atomNum].valenceList) {
 				if (valence >= bondSum) {
 					openings += (valence - bondSum);
@@ -85,7 +91,24 @@ public class MolProcessor implements Runnable{
 	}
 	
 	public boolean isComplete() {
+		if (maxOpenings == 0) return true;
 		return addUpOpenings (0);
+	}
+
+	private boolean[] seen ;
+	private boolean isConnectedDFS(){
+		seen = new boolean[atoms.length];
+		dfs(0);
+		boolean connected = true;
+		for (boolean b:seen) connected &= b;
+		return connected;
+	}
+	
+	private void dfs(int num) {
+		seen[num] = true;
+		for (int i=0; i<atoms.length; i++){
+			if (adjacency[i][num]>0 && !seen[i]) dfs(i);
+		}
 	}
 
 	public boolean isConnected() {
@@ -94,7 +117,7 @@ public class MolProcessor implements Runnable{
 		for (int i=0; i<atoms.length; i++){
 			if (!connectedToZero[i]) continue;
 			for (int j=0; j<atoms.length; j++) {
-				if (adjacency[i*atoms.length+j]>0) connectedToZero[j] |= connectedToZero[i];
+				if (adjacency[i][j]>0) connectedToZero[j] = true;
 			}
 		}
 		boolean connected = true;
@@ -102,39 +125,34 @@ public class MolProcessor implements Runnable{
 		return connected;
 	}
 	
-	private String molString(int [] canPerm){
-		StringBuffer buf = new StringBuffer();
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<i; j++){
-				buf.append(adjacency[canPerm[perm[i]]*atoms.length+canPerm[perm[j]]]);
-			}
-
-		return buf.toString();
-	}
-	
 	/**
 	 * Writes a molecule to a file in SDF format. This is more or less equivalent to writeTo method but it does not depend on CDK. 
-	 * The good is that it does not have the restrictions of having a "valid" atom container and is expected to wrok faster.
+	 * The good is that it does not have the restrictions of having a "valid" atom container and is expected to work faster.
 	 * The bad side is that it has less features and cannot handle all complicated chemical structures. 
 	 * @param outFile
 	 * @param mol_counter
 	 */
 	public synchronized void writeMol(BufferedWriter outFile, long mol_counter) {
 		StringWriter writer = new StringWriter();
-		writer.write(String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",atoms.length, bondsCount));
+		int bondsCount = 0;
+		
 		for (Atom atom : atoms) {
 			writer.write(String.format("    0.0000    0.0000    0.0000 %-3s 0  0  0  0  0  0%n", atom.symbol));
 		}
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<i; j++) {
-				int order = adjacency[perm[i]*atoms.length+perm[j]];
-				if (order > 0)
-					writer.write(String.format("%3d%3d%3d%3d%3d%3d%n",perm[i]+1, perm[j]+1, order, 0, 0, 0));
+				int order = adjacency[i][j];
+				if (order > 0){
+					bondsCount++;
+					writer.write(String.format("%3d%3d%3d%3d%3d%3d%n",i+1, j+1, order, 0, 0, 0));
+				}
 			}
 		
 		writer.write("M  END\n> <Id>\n"+mol_counter+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
 		try {
-			outFile.write(writer.toString());
+			// For the sake of calculating the bondsCount, we write the first line last!
+			outFile.write(String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",atoms.length, bondsCount)
+					      + writer.toString());
 		} catch (IOException e) {
 			System.err.println("Could not write molecule to output file.");
 			e.printStackTrace();
@@ -146,16 +164,18 @@ public class MolProcessor implements Runnable{
 		if (isFull(left))  return false;
 		if (isFull(right)) return false;
 
-		if (adjacency[left*atoms.length+right] > 2) return false;	// no more than Triple bonds
-		adjacency[left*atoms.length+right]++;
-		adjacency[right*atoms.length+left]++;
+		if (adjacency[left][right] > 2) return false;	// no more than Triple bonds
+		adjacency[left][right]++;
+		adjacency[right][left]++;
+//		bondsCount++;
 		return true;
 	}
 
 	private boolean decBond(int left, int right) {
-		if (adjacency[left*atoms.length+right] <= 0) return false;	// no more than Triple bonds
-		adjacency[left*atoms.length+right]--;
-		adjacency[right*atoms.length+left]--;
+		if (adjacency[left][right] <= 0) return false;	// no more than Triple bonds
+		adjacency[left][right]--;
+		adjacency[right][left]--;
+//		bondsCount--;
 		return true;
 	}
 
@@ -165,16 +185,16 @@ public class MolProcessor implements Runnable{
 	 */
 	private boolean isFull(int atom) {
 		int bondSum = 0;
-		int base = atom*atoms.length;
-		for (int i=base;i<base+atoms.length;i++)
-			bondSum += adjacency[i];
+		for (int i=0;i<atoms.length;i++)
+			bondSum += adjacency[atom][i];
 		return (atoms[atom].maxValence <= bondSum);
 	}
 	
+	private static Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 
 	@Override
 	public void run() {
-		if (isComplete() && isConnected()) {
+		if (isComplete() && isConnectedDFS()) {
 			//					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
 			long currentCount = PMG.molCounter.incrementAndGet();
 			if(PMG.wFile){
@@ -183,15 +203,19 @@ public class MolProcessor implements Runnable{
 		}	
 
 		// get all possible ways to add one bond to the molecule
-		ArrayList<MolProcessor> extMolList = addOneBond();
+		ArrayList<MolProcessor> extMolList = addOneBondNoCheck();
 
 		for (MolProcessor molecule : extMolList) {
+			if (molSet.add(molecule.canString) == false) continue;
+			PMG.pendingTasks.incrementAndGet();
+			PMG.startedTasks.incrementAndGet();
 			if (PMG.taskQueue.size() > PMG.executorCount*2) {
 				molecule.run();	// continue sequentially
 			} else {
 				PMG.executor.execute(molecule);
 			}
 		}
+		PMG.pendingTasks.decrementAndGet();
 	}
 
 
@@ -208,20 +232,18 @@ public class MolProcessor implements Runnable{
 //				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
-				if (bigStep && adjacency[left*atoms.length+right] > 0) continue;
-				
-				do {
-					if (!incBond(left, right)) break;	
+					if (!incBond(left, right)) continue;	
 
 					// canonize 
 					int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
 					String molString = molString(perm1);
+					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, molString, adjacency);
 					decBond(left,right);
-					if (visited.add(molString) == false) break;	
+					if (visited.add(molString) == false) continue;	
 
-					int[] orbit = graph.orbitRep;
-					if (!canAug || bondsCount==0){ // no need to check canonical augmentation
-						extMolList.add(new MolProcessor(maxOpenings-2, molString, adjacency, bondsCount, join(perm1, perm))); 
+//					int[] orbit = graph.orbitRep;
+					if (!canAug || canString.equals("")){ // no need to check canonical augmentation
+						extMolList.add(newMol); 
 						continue;
 					}
 
@@ -249,7 +271,6 @@ public class MolProcessor implements Runnable{
 						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
 					}
 */
-				} while (bigStep);
 			}
 		}
 		return extMolList;
@@ -261,6 +282,42 @@ public class MolProcessor implements Runnable{
 			perm[i] = perm1[perm2[i]];
 		return perm;
 	}
+	
+	private int[] canForm(int [] canPerm){
+		int[] tempadj = new int [atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++)
+				for (int k=0; k<adjacency[i][j]; k++){
+					tempadj[canPerm[i]] <<= 8;
+					tempadj[canPerm[i]] += canPerm[j];
+				}
+		return tempadj;
+	}
+	
+/*	private String molString(int [] canPerm){
+		byte[] tempadj = new byte [atoms.length*atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++){
+				tempadj[canPerm[i]*atoms.length+canPerm[j]] = (byte) (adjacency[i][j]+'0');
+			}
+		String code = new String(tempadj);
+		return code;
+	}
+*/
+	
+	private String molString(int [] canPerm){
+		int[][] tempadj = new int [atoms.length][atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++){
+				tempadj[canPerm[i]][canPerm[j]] = adjacency[i][j];
+			}
+		StringBuffer buf = new StringBuffer();
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<i; j++){
+				buf.append(tempadj[i][j]);
+			}
+		return buf.toString();
+	}
 
 	ArrayList<MolProcessor> addOneBond() {
 		return addBond(true, false);
@@ -269,9 +326,9 @@ public class MolProcessor implements Runnable{
 	ArrayList<MolProcessor> addOneBondNoCheck(){
 		return addBond(false, false);
 	}
-
-	ArrayList<MolProcessor> addBigBond(){
-		return addBond(false, true);
-	}
+//
+//	ArrayList<MolProcessor> addBigBond(){
+//		return addBond(false, true);
+//	}
 
 }

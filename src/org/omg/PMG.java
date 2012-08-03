@@ -46,6 +46,7 @@ public class PMG{
 	/**Output File containing the list of graph. */
 	static BufferedWriter outFile;
 	final static AtomicLong molCounter = new AtomicLong(0);
+	final static AtomicLong pendingTasks = new AtomicLong(0);
 	final static AtomicLong startedTasks = new AtomicLong(0);
 	final static SaturationChecker satCheck = new SaturationChecker();
 	final static LinkedBlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<Runnable>();
@@ -58,6 +59,7 @@ public class PMG{
 		if (atomSymbols == null) System.exit(1);
 		MolProcessor mp = new MolProcessor(atomSymbols);
 		startedTasks.getAndIncrement();
+		pendingTasks.getAndIncrement();
 		executor.execute(mp);
 	}
 
@@ -91,6 +93,7 @@ public class PMG{
 		if (wFile) outFile = new BufferedWriter(new FileWriter(out));
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 
+		System.out.println("CDK-free: "+formula);
 		long before = System.currentTimeMillis();
 		startup(formula); 	
 		wait2Finish();	// wait for all tasks to finish, close the output file and return the final count
@@ -100,6 +103,7 @@ public class PMG{
 		// Report the number of generated molecules
 		System.out.println("molecules " + molCounter.get());
 		System.out.println("Duration: " + (after - before) + " milliseconds\n");
+		System.out.println("Started Tasks: "+startedTasks.get());
 	}
 
 	private static void help() {
@@ -111,7 +115,7 @@ public class PMG{
 	}
 
 	private static void wait2Finish() {
-		while (0 < startedTasks.get()){
+		while (0 < pendingTasks.get()){
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
