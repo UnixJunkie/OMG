@@ -157,7 +157,7 @@ public class Graph {
 		}
 		for (int l=0; l<atomCount; l++)
 			for (int r=l+1; r<atomCount; r++) 
-				for (int o=0; o<mol.adjacency[l*atomCount+r]; o++) {
+				for (int o=0; o<mol.adjacency[l][r]; o++) {
 					int vid = _add_vertex(bliss, bondColor);
 					_add_edge(bliss, l, vid);
 					_add_edge(bliss, r, vid);				
