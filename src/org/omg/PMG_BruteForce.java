@@ -33,6 +33,7 @@ public class PMG_BruteForce{
 	private static int executorCount=Runtime.getRuntime().availableProcessors();
 	ThreadPoolExecutor executor;
 	LinkedBlockingQueue<Runnable> taskQueue;
+	AtomicLong pendingTasks;
 	AtomicLong startedTasks;
 
 	private int nH;
@@ -40,6 +41,7 @@ public class PMG_BruteForce{
 	private Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 	public PMG_BruteForce(){
 		mol_counter = new AtomicLong(0);
+		pendingTasks = new AtomicLong(0);
 		startedTasks = new AtomicLong(0);
 		taskQueue = new LinkedBlockingQueue<Runnable>();
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
@@ -112,6 +114,7 @@ public class PMG_BruteForce{
 		long before = System.currentTimeMillis();
 		PMG_BruteForce pmg = new PMG_BruteForce();
 		MolHelper2 mol = pmg.initialize(formula, fragments, out);
+		pmg.pendingTasks.getAndIncrement();
 		pmg.startedTasks.getAndIncrement();
 		pmg.generateTaskMol(mol);
 		pmg.finish();	// wait for all tasks to finish, and close the output files
@@ -121,6 +124,7 @@ public class PMG_BruteForce{
 		// Report the number of generated molecules
 		System.out.println("molecules " + pmg.getFinalCount());
 		System.out.println("Duration: " + (after - before) + " miliseconds\n");
+		System.out.println("Started tasks: "+pmg.startedTasks.get());
 	}
 
 
@@ -136,17 +140,18 @@ public class PMG_BruteForce{
 		@Override
 		public void run() {
 			try {
-				if (mol.isComplete(satCheck, nH) && mol.isConnected()) {
+				if (mol.isComplete(/*satCheck,*/ nH) && mol.isConnected()) {
 					mol_counter.incrementAndGet();
 					if(wFile){
 						mol.writeTo(outFile, mol_counter.get());
 					}	
 				}
 				// get all possible ways to add one bond to the molecule
-				ArrayList<MolHelper2> extMolList = mol.addOneBond(); //BigBond(); //addOneBondNoCheck(); // 
+				ArrayList<MolHelper2> extMolList = mol.addOneBondNoCheck(); //BigBond(); //addOneBondNoCheck(); // 
 
 				for (MolHelper2  molecule : extMolList) {
 					if (molSet.add(molecule.canString)){
+						pendingTasks.getAndIncrement();
 						startedTasks.getAndIncrement();
 						if (taskQueue.size() > executorCount*2) {
 							mol = molecule;
@@ -163,14 +168,14 @@ public class PMG_BruteForce{
 			} catch (Exception e){
 				e.printStackTrace();
 			}
-			startedTasks.decrementAndGet();
+			pendingTasks.decrementAndGet();
 			mol = null;
 		}
 		
 	}
 	
 	private void finish() {
-		while (0 < startedTasks.get()){
+		while (0 < pendingTasks.get()){
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
@@ -191,7 +196,7 @@ public class PMG_BruteForce{
 
 	public long getFinalCount() {
 		// TODO make sure the computation is finished before returning the final count
-		while (0 < startedTasks.get()){
+		while (0 < pendingTasks.get()){
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
