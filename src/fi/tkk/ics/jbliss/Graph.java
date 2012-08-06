@@ -110,7 +110,7 @@ public class Graph {
 	 *
 	 * @return           A canonical labeling permutation
 	 */
-	public int[] canonize(IAtomContainer atomContainer, boolean report) {
+	public int[] canonize(final IAtomContainer atomContainer, final boolean report) {
 		// initialize the orbit calculation
 		atomCount = atomContainer.getAtomCount();
 		orbitRep = new int[atomCount ];
@@ -144,12 +144,12 @@ public class Graph {
 		return cf;
 	}
 	
-	public int[] canonize(MolProcessor mol, boolean report) {
+	public int[] canonize(final MolProcessor mol, final boolean report) {
 		for (int i=0; i<atomCount; i++){
 			orbitRep[i] = i;	// start with no symmetry
 		}
 		// create a bliss instance for calculating the canonical labeling
-		long bliss = create();
+		final long bliss = create();
 		assert bliss != 0;
 		
 		for (Atom a:mol.atoms){
@@ -157,12 +157,12 @@ public class Graph {
 		}
 		for (int l=0; l<atomCount; l++)
 			for (int r=l+1; r<atomCount; r++) 
-				for (int o=0; o<mol.adjacency[l][r]; o++) {
-					int vid = _add_vertex(bliss, bondColor);
+				for (int o=0; o<mol.getBondOrder(l, r); o++) {
+					final int vid = _add_vertex(bliss, bondColor);
 					_add_edge(bliss, l, vid);
 					_add_edge(bliss, r, vid);				
 				}
-		int[] cf = _canonical_labeling(bliss, report?1:null); 
+		final int[] cf = _canonical_labeling(bliss, report?1:null); 
 		destroy(bliss);
 
 		return cf;
