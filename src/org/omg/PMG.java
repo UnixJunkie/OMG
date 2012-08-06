@@ -93,7 +93,7 @@ public class PMG{
 		if (wFile) outFile = new BufferedWriter(new FileWriter(out));
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 
-		System.out.println("CDK-free: "+formula);
+		System.out.print("CDK-free "+formula+(MolProcessor.canAug?" with":" without")+" canonical augmentation.");
 		long before = System.currentTimeMillis();
 		startup(formula); 	
 		wait2Finish();	// wait for all tasks to finish, close the output file and return the final count

@@ -10,13 +10,13 @@ public class Atom {
 	public final String symbol;
 	public final int maxValence;
 	public final List<Integer> valenceList;
-	int ID;
+//	int ID;
 	
 	public Atom (String s, int id) {
 		symbol = s;
 		valenceList = valenceTable.get(symbol);
 		maxValence = valenceList.get(0);
-		ID = id;
+//		ID = id;
 	}
 
 /*

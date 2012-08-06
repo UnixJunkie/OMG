@@ -19,27 +19,14 @@ import org.openscience.cdk.interfaces.IBond;
 import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
+	public static final boolean canAug = true;
 	public final Atom[] atoms;
 	final int nH;
 	final int maxOpenings;
 	final String canString;
 	final Graph graph;
-	public int[][] adjacency;
+	final int[][] adjacency;
 //	int []perm;
-	
-	public MolProcessor(Atom[] atoms, int nH, int maxOpenings,
-			String canString, int[][] adjacency) {
-		this.atoms = atoms;
-		this.nH = nH;
-		this.maxOpenings = maxOpenings;
-		this.canString = canString;
-		graph = new Graph(atoms.length);
-//		this.adjacency = adjacency.clone();
-		this.adjacency = new int [atoms.length][atoms.length];
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<atoms.length; j++)
-				this.adjacency[i][j] = adjacency[i][j];
-	}
 
 	public MolProcessor(ArrayList<String> atomSymbols){
 		int nH=0;
@@ -66,8 +53,32 @@ public class MolProcessor implements Runnable{
 //		perm = new int[atomCount];
 //		for (int i=0; i<atomCount; i++) perm[i] = i;
 	}
+	
+	public MolProcessor(Atom[] atoms, int nH, int maxOpenings, int[][] adjacency, Graph gr, int[] canPerm) {
+		this.atoms = atoms;
+		this.nH = nH;
+		this.maxOpenings = maxOpenings;
+		graph = gr; 
+		this.adjacency = new int [atoms.length][atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++){
+				this.adjacency[canPerm[i]][canPerm[j]] = adjacency[i][j];
+			}
+		this.canString = molString();
+	}
+	
+	private String molString(){
+		StringBuilder buf = new StringBuilder();
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<i; j++){
+				buf.append(adjacency[i][j]);
+			}
+		return buf.toString();
+	}
 
-
+	public int getBondOrder (int l, int r){
+		return adjacency[l][r];
+	}
 
 	private int openings = 0;
 	private boolean addUpOpenings(int atomNum) {
@@ -190,7 +201,7 @@ public class MolProcessor implements Runnable{
 		return (atoms[atom].maxValence <= bondSum);
 	}
 	
-	private static Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
+	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 
 	@Override
 	public void run() {
@@ -203,10 +214,10 @@ public class MolProcessor implements Runnable{
 		}	
 
 		// get all possible ways to add one bond to the molecule
-		ArrayList<MolProcessor> extMolList = addOneBondNoCheck();
+		ArrayList<MolProcessor> extMolList = addBond();
 
 		for (MolProcessor molecule : extMolList) {
-			if (molSet.add(molecule.canString) == false) continue;
+			if (!canAug && molSet.add(molecule.canString) == false) continue;
 			PMG.pendingTasks.incrementAndGet();
 			PMG.startedTasks.incrementAndGet();
 			if (PMG.taskQueue.size() > PMG.executorCount*2) {
@@ -219,7 +230,7 @@ public class MolProcessor implements Runnable{
 	}
 
 
-	private ArrayList<MolProcessor> addBond(boolean canAug, boolean bigStep) {
+	private ArrayList<MolProcessor> addBond() {
 		ArrayList<MolProcessor> extMolList = new ArrayList<>();
 		if (maxOpenings<=0) return extMolList;	// the molecule is already saturated!
 		
@@ -233,56 +244,63 @@ public class MolProcessor implements Runnable{
 				// For the first iteration (in inner loop), we may consider the same orbit as "left"
 				
 					if (!incBond(left, right)) continue;	
-
 					// canonize 
 					int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-					String molString = molString(perm1);
-					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, molString, adjacency);
+					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1);
+					if (visited.add(newMol.canString)) {	
+						if (!canAug || canString.equals("") || canString.equals(newMol.canDel())){ 
+							extMolList.add(newMol); 
+						}
+					}	
 					decBond(left,right);
-					if (visited.add(molString) == false) continue;	
-
-//					int[] orbit = graph.orbitRep;
-					if (!canAug || canString.equals("")){ // no need to check canonical augmentation
-						extMolList.add(newMol); 
-						continue;
-					}
-
-					assert (false);
-/* for now let's forget about canonical augmentation
-					// remove the last bond and canonize again (to check for canonical augmentation)
-					int maxBond = 0; 
-					for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
-
-					copyMol = (IAtomContainer) canExtMol.clone();
-					Iterator<IBond> bonds = copyMol.bonds().iterator();
-					IBond lastBond;
-					do {
-						lastBond = bonds.next();
-					} while (Integer.parseInt(lastBond.getID()) < maxBond);
-					decBond(lastBond, copyMol);	// remove a bond ....
-
-					int[] perm = graph.canonize(copyMol, true);
-					copyMol = Graph.relabel(copyMol, perm);
-					String parentString = molString(copyMol);
-
-					if (this.canString.equals(parentString)){
-						//				if (aresame(acontainer, copyMol)){
-						//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
-						extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
-					}
-*/
 			}
 		}
 		return extMolList;
 	}
-
-	private int[] join(int[] perm1, int[] perm2) {
-		int perm[] = new int [atoms.length];
-		for (int i=0; i<atoms.length; i++)
-			perm[i] = perm1[perm2[i]];
-		return perm;
+	
+	private String canDel() {
+		int left=0,right=0;
+		for (int i = 0; i < atoms.length; i++){
+			for (int j = i+1; j < atoms.length; j++){
+				if (adjacency[i][j] != 0) {
+					left = i;
+					right = j;
+					break;
+				}
+			}
+		}
+		decBond(left, right);
+		int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
+		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1);
+		incBond(left, right);
+		return tempMol.canString;
 	}
 	
+	
+	/* for now let's forget about canonical augmentation
+	// remove the last bond and canonize again (to check for canonical augmentation)
+	int maxBond = 0; 
+	for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
+
+	copyMol = (IAtomContainer) canExtMol.clone();
+	Iterator<IBond> bonds = copyMol.bonds().iterator();
+	IBond lastBond;
+	do {
+		lastBond = bonds.next();
+	} while (Integer.parseInt(lastBond.getID()) < maxBond);
+	decBond(lastBond, copyMol);	// remove a bond ....
+
+	int[] perm = graph.canonize(copyMol, true);
+	copyMol = Graph.relabel(copyMol, perm);
+	String parentString = molString(copyMol);
+
+	if (this.canString.equals(parentString)){
+		//				if (aresame(acontainer, copyMol)){
+		//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
+		extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
+	}
+	 */
+
 	private int[] canForm(int [] canPerm){
 		int[] tempadj = new int [atoms.length];
 		for (int i=0; i<atoms.length; i++)
@@ -304,31 +322,5 @@ public class MolProcessor implements Runnable{
 		return code;
 	}
 */
-	
-	private String molString(int [] canPerm){
-		int[][] tempadj = new int [atoms.length][atoms.length];
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<atoms.length; j++){
-				tempadj[canPerm[i]][canPerm[j]] = adjacency[i][j];
-			}
-		StringBuffer buf = new StringBuffer();
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<i; j++){
-				buf.append(tempadj[i][j]);
-			}
-		return buf.toString();
-	}
-
-	ArrayList<MolProcessor> addOneBond() {
-		return addBond(true, false);
-	}
-
-	ArrayList<MolProcessor> addOneBondNoCheck(){
-		return addBond(false, false);
-	}
-//
-//	ArrayList<MolProcessor> addBigBond(){
-//		return addBond(false, true);
-//	}
 
 }
