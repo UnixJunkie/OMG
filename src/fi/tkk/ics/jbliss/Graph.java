@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveTask;
 
 import org.omg.MolHelper;
 import org.omg.MolProcessor;
@@ -103,6 +105,43 @@ public class Graph {
 		return str;
 	}
 
+	@SuppressWarnings("serial")
+	class Repeater extends RecursiveTask<Long> {
+		final int n;
+		final MolProcessor mol;
+		
+		public Repeater(final int m, final MolProcessor o) {
+			n=m;
+			mol = o;
+		}
+		@Override
+		protected Long compute() {
+//			System.out.println("Rep"+n);
+			canonize(mol, false);
+//			System.out.println("found"+n);
+			final List<RecursiveTask<Long>> tasks = new ArrayList<>();
+			for (int i=n; i<9; i++) {
+				tasks.add(new Repeater(n+1,mol));
+			}
+//			System.out.println("created"+n);
+			long count = 1;
+			for(final RecursiveTask<Long> task : invokeAll(tasks)) { 
+				count += task.join(); 
+			}
+//			System.out.println("finished"+n);
+			return count;
+		}
+	}
+	private final static ForkJoinPool forkJoinPool = new ForkJoinPool();
+
+	public void repeat(MolProcessor mol)
+	{
+		final long middle = System.currentTimeMillis();		
+		final long count = forkJoinPool.invoke(new Repeater(0, mol));
+		System.out.println("Count is "+count);
+		final long after = System.currentTimeMillis();		
+    	System.out.println("Time elapsed: "+(after-middle));
+	}
 	
 	
 	/**
