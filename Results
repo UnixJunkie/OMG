@@ -112,3 +112,64 @@ Disabling parallelism at task queue of 208 with active count: 6
 Enabling parallelism at task queue of 3 with active count: 6
 molecules 23096
 Duration: 38167 miliseconds
+
+
+
+
+PMG7: Fork-join processing of C4H6O5 started:
+CCCCOOOOO
+molecules 8070
+Duration: 17389 milliseconds
+
+
+---- Aug 3
+CDK-free: C3H7NO2S
+molecules 152662
+Duration: 32016 milliseconds
+Started Tasks: 290583
+
+PMG: Parallel processing of C3H7NO2S started (using bliss as canonizer and with 4 threads).
+Current atom order is: CCCSOON
+molecules 152662
+Duration: 38433 miliseconds
+Started tasks: 290583
+
+
+======= semi-canonical ===================================
+CDK-free C4H6O5 with semi-canonical. (p==1)
+molecules:  71638
+duplicates: 63568; non-duplicates: 8070
+Duration: 4010 milliseconds
+Started Tasks: 501510
+
+SEQUENTIAL with canonical augmentation. (p==1)
+CDK-free C4H6O5 
+molecules:  8070
+duplicates: 0; non-duplicates: 8070
+Duration: 31014 milliseconds
+Started Tasks: 56818
+---------------------
+CDK-free C4H7NO3 with semi-canonical. (p==1)
+molecules:  527532
+duplicates: 458695; non-duplicates: 68837
+Duration: 21008 milliseconds
+Started Tasks: 1704313
+
+CDK-free C4H7NO3 with semi-canonical. (p==4)
+molecules:  527532
+duplicates: 458695; non-duplicates: 68837
+Duration: 12091 milliseconds
+Started Tasks: 1704313
+
+
+CDK-free C4H7NO3 with canonical augmentation. (p==1)
+molecules:  68837
+duplicates: 0; non-duplicates: 68837
+Duration: 93015 milliseconds
+Started Tasks: 215876
+
+CDK-free C4H7NO3 with canonical augmentation. (p==4)
+molecules:  68837
+duplicates: 0; non-duplicates: 68837
+Duration: 44022 milliseconds
+Started Tasks: 215876

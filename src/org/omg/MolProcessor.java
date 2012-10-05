@@ -20,6 +20,8 @@ import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
 	public static final boolean canAug = true;
+	private static final boolean semiCan = true;
+	
 	public final Atom[] atoms;
 	final int nH;
 	final int maxOpenings;
@@ -27,8 +29,12 @@ public class MolProcessor implements Runnable{
 	final Graph graph;
 	final int[][] adjacency;
 //	int []perm;
+	static AtomicLong duplicate = new AtomicLong(0);
+	final int startLeft, startRight;
+	
+	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 
-	public MolProcessor(ArrayList<String> atomSymbols){
+	public MolProcessor(final ArrayList<String> atomSymbols){
 		int nH=0;
 		int maxOpenings=0;
 		int atomCount=0;
@@ -50,11 +56,40 @@ public class MolProcessor implements Runnable{
 		graph = new Graph(atomCount);
 		this.maxOpenings = maxOpenings;
 		canString = "";
+		startLeft=0;
+		startRight=1;
 //		perm = new int[atomCount];
 //		for (int i=0; i<atomCount; i++) perm[i] = i;
 	}
 	
-	public MolProcessor(Atom[] atoms, int nH, int maxOpenings, int[][] adjacency, Graph gr, int[] canPerm) {
+	/**
+	 * Used with the semi-canonization method, which does not keep 
+	 * a canonical form, but a semi-canonical form of the molecule.
+	 * 
+	 * @param atoms
+	 * @param nH
+	 * @param maxOpenings
+	 * @param adjacency
+	 * @param gr
+	 */
+	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
+			            final int[][] adjacency, final Graph gr, final int stL, final int stR) {
+		this.atoms = atoms;
+		this.nH = nH;
+		this.maxOpenings = maxOpenings;
+		graph = gr; 
+		this.adjacency = new int [atoms.length][atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++){
+				this.adjacency[i][j] = adjacency[i][j];
+			}
+		this.canString = "";
+		this.startLeft = stL;
+		this.startRight = stR;
+	}
+	
+	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
+			            final int[][] adjacency, final Graph gr, final int[] canPerm) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -65,6 +100,8 @@ public class MolProcessor implements Runnable{
 				this.adjacency[canPerm[i]][canPerm[j]] = adjacency[i][j];
 			}
 		this.canString = molString();
+		startLeft=0;
+		startRight=1;
 	}
 	
 	private String molString(){
@@ -76,12 +113,12 @@ public class MolProcessor implements Runnable{
 		return buf.toString();
 	}
 
-	public int getBondOrder (int l, int r){
+	public int getBondOrder (final int l, final int r){
 		return adjacency[l][r];
 	}
 
 	private int openings = 0;
-	private boolean addUpOpenings(int atomNum) {
+	private boolean addUpOpenings(final int atomNum) {
 		if (atoms.length == atomNum) 
 			return openings == nH;
 		else {
@@ -121,20 +158,6 @@ public class MolProcessor implements Runnable{
 			if (adjacency[i][num]>0 && !seen[i]) dfs(i);
 		}
 	}
-
-	public boolean isConnected() {
-		boolean connectedToZero[] = new boolean [atoms.length];
-		connectedToZero[0] = true;
-		for (int i=0; i<atoms.length; i++){
-			if (!connectedToZero[i]) continue;
-			for (int j=0; j<atoms.length; j++) {
-				if (adjacency[i][j]>0) connectedToZero[j] = true;
-			}
-		}
-		boolean connected = true;
-		for (boolean b:connectedToZero) connected &= b;
-		return connected;
-	}
 	
 	/**
 	 * Writes a molecule to a file in SDF format. This is more or less equivalent to writeTo method but it does not depend on CDK. 
@@ -143,7 +166,7 @@ public class MolProcessor implements Runnable{
 	 * @param outFile
 	 * @param mol_counter
 	 */
-	public synchronized void writeMol(BufferedWriter outFile, long mol_counter) {
+	public synchronized void writeMol(final BufferedWriter outFile, final long mol_counter) {
 		StringWriter writer = new StringWriter();
 		int bondsCount = 0;
 		
@@ -170,23 +193,33 @@ public class MolProcessor implements Runnable{
 		} 
 	}
 	
-
-	private boolean incBond(int left, int right) {
+	private boolean incBondSemiCan(final int left, final int right){
+		if (right>left+1 && atoms[right].symbol.equals(atoms[right-1].symbol) && 
+			adjacency[left][right]==adjacency[left][right-1]) {
+			int row;
+			for (row=left; row>0; row--)  {
+				if (adjacency[row-1][right]!=adjacency[row-1][right-1]) break;
+			}
+			if (row == 0)
+				return false;
+		}
+		return incBond(left, right);
+	}
+	
+	private boolean incBond(final int left, final int right) {
 		if (isFull(left))  return false;
 		if (isFull(right)) return false;
 
 		if (adjacency[left][right] > 2) return false;	// no more than Triple bonds
 		adjacency[left][right]++;
 		adjacency[right][left]++;
-//		bondsCount++;
 		return true;
 	}
 
-	private boolean decBond(int left, int right) {
+	private boolean decBond(final int left, final int right) {
 		if (adjacency[left][right] <= 0) return false;	// no more than Triple bonds
 		adjacency[left][right]--;
 		adjacency[right][left]--;
-//		bondsCount--;
 		return true;
 	}
 
@@ -194,27 +227,38 @@ public class MolProcessor implements Runnable{
 	/**
 	 * @param atom
 	 */
-	private boolean isFull(int atom) {
+	private boolean isFull(final int atom) {
 		int bondSum = 0;
 		for (int i=0;i<atoms.length;i++)
 			bondSum += adjacency[atom][i];
 		return (atoms[atom].maxValence <= bondSum);
 	}
-	
-	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 
 	@Override
 	public void run() {
 		if (isComplete() && isConnectedDFS()) {
 			//					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
+			MolProcessor newMol = this;
+			if (semiCan) {
+				// canonize 
+				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
+				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1);
+			}
 			long currentCount = PMG.molCounter.incrementAndGet();
-			if(PMG.wFile){
-				writeMol(PMG.outFile, currentCount);
+			if (semiCan && !molSet.add(newMol.canString)) duplicate.incrementAndGet();
+			else {
+				if(PMG.wFile){
+					writeMol(PMG.outFile, currentCount);
+				}
 			}
 		}	
 
 		// get all possible ways to add one bond to the molecule
-		ArrayList<MolProcessor> extMolList = addBond();
+		ArrayList<MolProcessor> extMolList;
+		if (semiCan)
+			extMolList = addBondSemiCan();
+		else 
+			extMolList = addBond();
 
 		for (MolProcessor molecule : extMolList) {
 			if (!canAug && molSet.add(molecule.canString) == false) continue;
@@ -230,6 +274,23 @@ public class MolProcessor implements Runnable{
 	}
 
 
+	private ArrayList<MolProcessor> addBondSemiCan() {
+		ArrayList<MolProcessor> extMolList = new ArrayList<>();
+		if (maxOpenings<=0) 
+			return extMolList;	// the molecule is already saturated!
+		
+		for (int left = startLeft; left < atoms.length; left++){
+			for (int right = left+1; right < atoms.length; right++){
+				if (left == startLeft && right<startRight) continue;
+				if (incBondSemiCan(left, right)) {	
+					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right)); 
+					decBond(left,right);
+				}
+			}
+		}
+		return extMolList;	
+	}
+		
 	private ArrayList<MolProcessor> addBond() {
 		ArrayList<MolProcessor> extMolList = new ArrayList<>();
 		if (maxOpenings<=0) return extMolList;	// the molecule is already saturated!
@@ -276,32 +337,7 @@ public class MolProcessor implements Runnable{
 		return tempMol.canString;
 	}
 	
-	
-	/* for now let's forget about canonical augmentation
-	// remove the last bond and canonize again (to check for canonical augmentation)
-	int maxBond = 0; 
-	for (int p=1; p<perm1.length; p++) if (perm1[maxBond] < perm1[p]) maxBond = p;
-
-	copyMol = (IAtomContainer) canExtMol.clone();
-	Iterator<IBond> bonds = copyMol.bonds().iterator();
-	IBond lastBond;
-	do {
-		lastBond = bonds.next();
-	} while (Integer.parseInt(lastBond.getID()) < maxBond);
-	decBond(lastBond, copyMol);	// remove a bond ....
-
-	int[] perm = graph.canonize(copyMol, true);
-	copyMol = Graph.relabel(copyMol, perm);
-	String parentString = molString(copyMol);
-
-	if (this.canString.equals(parentString)){
-		//				if (aresame(acontainer, copyMol)){
-		//				if (aresame(Graph.relabel(acontainer, perm1), copyMol)){	// Is it possible to avoid the second canonization?
-		extMolList.add(new MolHelper2(canExtMol, orbit, molString, maxOpenings-2)); 
-	}
-	 */
-
-	private int[] canForm(int [] canPerm){
+	private int[] canForm(final int [] canPerm){
 		int[] tempadj = new int [atoms.length];
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<atoms.length; j++)
@@ -311,16 +347,4 @@ public class MolProcessor implements Runnable{
 				}
 		return tempadj;
 	}
-	
-/*	private String molString(int [] canPerm){
-		byte[] tempadj = new byte [atoms.length*atoms.length];
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<atoms.length; j++){
-				tempadj[canPerm[i]*atoms.length+canPerm[j]] = (byte) (adjacency[i][j]+'0');
-			}
-		String code = new String(tempadj);
-		return code;
-	}
-*/
-
 }

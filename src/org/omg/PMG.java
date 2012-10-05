@@ -101,7 +101,9 @@ public class PMG{
 		long after = System.currentTimeMillis();		
 
 		// Report the number of generated molecules
-		System.out.println("molecules " + molCounter.get());
+		System.out.println();
+		System.out.println("molecules:  " + molCounter.get());
+		System.out.println("duplicates: "+MolProcessor.duplicate.get()+"; non-duplicates: "+(molCounter.get()-MolProcessor.duplicate.get()));
 		System.out.println("Duration: " + (after - before) + " milliseconds\n");
 		System.out.println("Started Tasks: "+startedTasks.get());
 	}
