@@ -258,5 +258,6 @@ public class Graph {
 		colorTable.put("O", 3);
 		colorTable.put("S", 4);
 		colorTable.put("P", 5);
+		colorTable.put("H", 6);
 	}
 }
