@@ -35,7 +35,7 @@ public class MolProcessor implements Runnable{
 	final int[] mPerm;
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
-	final LinkedList<int[]>[] allPerm;
+	final LinkedList<LinkedList<int[]>> allPerm;
 	
 	
 	public MolProcessor(final ArrayList<String> atomSymbols){
@@ -63,32 +63,37 @@ public class MolProcessor implements Runnable{
 		startLeft=0;
 		startRight=1;
 		mPerm = new int[atoms.length];
-		allPerm = new LinkedList[atoms.length];
+		allPerm = new LinkedList<LinkedList<int[]>>();
 		populate(allPerm);
 //		perm = new int[atomCount];
 //		for (int i=0; i<atomCount; i++) perm[i] = i;
 	}
 	
-	private void populate(LinkedList<int[]>[] allPerm2) {
+	private void populate(LinkedList<LinkedList<int[]>> allPerm2) {
 		int n = atoms.length-1;
 		int permutation[] = new int[atoms.length];
+		LinkedList<int[]> pList = new LinkedList<int[]>();
 		for (int i=0; i<atoms.length; i++){
-			allPerm[i] = new LinkedList<int[]>();
 			permutation[i] = i;
 		}
-		allPerm[n].add(permutation);
+		pList.add(permutation);
+		allPerm.add(pList);
 		while (--n>=0){
+			final LinkedList<LinkedList<int[]>> transPerm = new LinkedList<>();
 			for (int k=n+1;k<atoms.length; k++){
 				if (!atoms[k].symbol.equals(atoms[n].symbol)) break;	// consider only permutations between the same atom types
-				for (int kk=n+1;kk<atoms.length; kk++)
-				for (int[] p : allPerm[kk]){
+				pList = new LinkedList<int[]>();
+				for (LinkedList<int[]> prevList:allPerm)
+				for (int[] p : prevList){
 					permutation = new int[atoms.length];
 					for (int i=0;i<atoms.length; i++) permutation[i] = p[i];
 					permutation[k] = p[n];
 					permutation[n] = p[k];
-					allPerm[n].add(permutation);
+					pList.add(permutation);
 				}
+				transPerm.add(pList);
 			}
+			allPerm.addAll(transPerm);
 		}
 	}
 
@@ -103,7 +108,8 @@ public class MolProcessor implements Runnable{
 	 * @param gr
 	 */
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, final int stL, final int stR, LinkedList<int[]>[] allPerm) {
+			            final int[][] adjacency, final Graph gr, 
+			            final int stL, final int stR, final LinkedList<LinkedList<int[]>> allPerm) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -121,7 +127,8 @@ public class MolProcessor implements Runnable{
 	}
 		 	
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, final int[] canPerm, LinkedList<int[]>[] allPerm) {
+			            final int[][] adjacency, final Graph gr, final int[] canPerm,
+			            final LinkedList<LinkedList<int[]>> allPerm) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -283,15 +290,15 @@ public class MolProcessor implements Runnable{
 	}
 
 	private boolean isMinimalOrderly(){
-		nextLevel: for (int ip=atoms.length-2;ip>=0;ip--){
-			nextPerm: for(int[]p : allPerm[ip]){
+		nextLevel: for (LinkedList<int[]> permList : allPerm){
+			nextPerm: for(int[]p : permList){
 				for (int i=0; i<atoms.length; i++){
 					for (int j=i+1; j<atoms.length; j++){
 						if (adjacency[i][j] < adjacency[p[i]][p[j]]) return false;	// permuted is smaller
 						if (adjacency[i][j] > adjacency[p[i]][p[j]]) continue nextPerm;	// original is smaller
 					}
 				}
-				//continue nextLevel;	// if (permuted == original) skip to next level
+				continue nextLevel;	// if (permuted == original) skip to next level
 			}
 		}
 		return true;
