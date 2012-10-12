@@ -291,7 +291,7 @@ public class MolProcessor implements Runnable{
 						if (adjacency[i][j] > adjacency[p[i]][p[j]]) continue nextPerm;	// original is smaller
 					}
 				}
-				continue nextLevel;	// if (permuted == original) skip to next level
+				//continue nextLevel;	// if (permuted == original) skip to next level
 			}
 		}
 		return true;
