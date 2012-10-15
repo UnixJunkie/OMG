@@ -20,8 +20,8 @@ import org.openscience.cdk.interfaces.IBond;
 import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
-	public static final boolean canAug = true;
-	private static final boolean semiCan = true;
+	static final boolean semiCan = true;
+	static final boolean canAug = !semiCan;
 	
 	public final Atom[] atoms;
 	final int nH;

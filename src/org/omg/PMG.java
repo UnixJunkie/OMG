@@ -72,6 +72,7 @@ public class PMG{
 		for(int i = 0; i < args.length; i++){
 			if(args[i].equals("-p")){
 				executorCount = Integer.parseInt(args[++i]);
+				if (executorCount < 1) executorCount = 1;
 			}
 			else if(args[i].equals("-mf")){
 				formula = args[++i];
@@ -93,7 +94,10 @@ public class PMG{
 		if (wFile) outFile = new BufferedWriter(new FileWriter(out));
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 
-		System.out.print("CDK-free "+formula+(MolProcessor.canAug?" with":" without")+" canonical augmentation.");
+		System.out.println("CDK-free "+formula);
+		if (MolProcessor.canAug)  System.out.println("Using canonical augmentation with bliss as canonizer.");
+		if (MolProcessor.semiCan) System.out.println("Using semi-canonization and minimization.");
+		if (executorCount > 1)    System.out.println("Parallel execution with "+executorCount+" threads.");
 		long before = System.currentTimeMillis();
 		startup(formula); 	
 		wait2Finish();	// wait for all tasks to finish, close the output file and return the final count
