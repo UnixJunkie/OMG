@@ -22,6 +22,7 @@ import fi.tkk.ics.jbliss.Graph;
 public class MolProcessor implements Runnable{
 	static final boolean semiCan = true;
 	static final boolean canAug = !semiCan;
+	static final boolean hashMap = true;	// otherwise, minimality check (with semiCan)
 	
 	public final Atom[] atoms;
 	final int nH;
@@ -64,7 +65,7 @@ public class MolProcessor implements Runnable{
 		startRight=1;
 		mPerm = new int[atoms.length];
 		allPerm = new LinkedList<LinkedList<int[]>>();
-		populate(allPerm);
+		if (!hashMap && semiCan) populate(allPerm);
 //		perm = new int[atomCount];
 //		for (int i=0; i<atomCount; i++) perm[i] = i;
 	}
@@ -72,6 +73,7 @@ public class MolProcessor implements Runnable{
 	private void populate(LinkedList<LinkedList<int[]>> allPerm2) {
 		int n = atoms.length-1;
 		int permutation[] = new int[atoms.length];
+		long pCount = 0;
 		LinkedList<int[]> pList = new LinkedList<int[]>();
 		for (int i=0; i<atoms.length; i++){
 			permutation[i] = i;
@@ -90,11 +92,13 @@ public class MolProcessor implements Runnable{
 					permutation[k] = p[n];
 					permutation[n] = p[k];
 					pList.add(permutation);
+					pCount ++;
 				}
 				transPerm.add(pList);
 			}
 			allPerm.addAll(transPerm);
 		}
+		System.out.println("Number of permutations: "+pCount);
 	}
 
 	/**
@@ -234,6 +238,19 @@ public class MolProcessor implements Runnable{
 		} 
 	}
 	
+	private boolean incBondSemiCanBig(final int left, final int right){
+		if (right<atoms.length-1 && atoms[right].symbol.equals(atoms[right+1].symbol) && 
+			adjacency[left][right]==adjacency[left][right+1]) {
+			int row;
+			for (row=left; row>0; row--)  {
+				if (adjacency[row-1][right]!=adjacency[row-1][right+1]) break;
+			}
+			if (row == 0)
+				return false;
+		}
+		return incBond(left, right);
+	}
+	
 	private boolean incBondSemiCan(final int left, final int right){
 		if (right>left+1 && atoms[right].symbol.equals(atoms[right-1].symbol) && 
 			adjacency[left][right]==adjacency[left][right-1]) {
@@ -289,21 +306,6 @@ public class MolProcessor implements Runnable{
 		return true;
 	}
 
-	private boolean isMinimalOrderly(){
-		nextLevel: for (LinkedList<int[]> permList : allPerm){
-			nextPerm: for(int[]p : permList){
-				for (int i=0; i<atoms.length; i++){
-					for (int j=i+1; j<atoms.length; j++){
-						if (adjacency[i][j] < adjacency[p[i]][p[j]]) return false;	// permuted is smaller
-						if (adjacency[i][j] > adjacency[p[i]][p[j]]) continue nextPerm;	// original is smaller
-					}
-				}
-				continue nextLevel;	// if (permuted == original) skip to next level
-			}
-		}
-		return true;
-	}
-
 	private boolean checkMinimality() {
 		int[][] pAdjacency = new int [atoms.length][atoms.length];
 		for (int i=0; i<atoms.length; i++)
@@ -321,20 +323,139 @@ public class MolProcessor implements Runnable{
 	private boolean isMinimal(){
 		return genPerm(atoms.length-1);
 	}
+	
+	private boolean isMinimalOrderly(){
+		nextLevel: for (LinkedList<int[]> permList : allPerm){
+			nextPerm: for(int[]p : permList){
+				for (int i=0; i<atoms.length; i++){
+					for (int j=i+1; j<atoms.length; j++){
+						if (adjacency[i][j] < adjacency[p[i]][p[j]]) return false;	// permuted is smaller
+						if (adjacency[i][j] > adjacency[p[i]][p[j]]) continue nextPerm;	// original is smaller
+					}
+				}
+				continue nextLevel;	// if (permuted == original) skip to next level
+			}
+		}
+		return true;
+	}
+	
+	int[] p, pp;
+	private boolean isMinimal2(){
+		p = new int[atoms.length];
+		pp = new int[atoms.length];
+		up:for (int i=0; i<atoms.length-2; i++){
+			for (int j=i+1;  j<atoms.length-1 && atoms[i].symbol.equals(atoms[j].symbol); j++){
+				if (adjacency[i][i+1] < adjacency[j][j+1]) return false;
+				if (adjacency[i][i+1] > adjacency[j][j+1]) continue up;
+				p[j] = i; pp[i] = j;
+				if (!check(i,j)) return false;
+				for (int s=j; s<atoms.length; s++) {
+					pp[p[j]] = 0;
+					p[j] = 0;
+				}
+			}
+			p[i] = i; pp[i] = i;
+		}
+		return true;
+	}
+
+	private boolean check(int i, int j) {
+		up: for (int x=i+1; x<atoms.length; x++){
+			if (pp[x] != 0) continue;
+			int max = 0;
+			for (int y=0;  y<atoms.length && atoms[x].symbol.equals(atoms[y].symbol); y++) {
+				if (p[y]!=0) continue;
+				if (adjacency[i][x] < adjacency[j][y]) return false;
+				if (adjacency[i][x] == adjacency[j][y]) {
+					p[y] = x; pp[x] = y;
+					continue up;
+				}
+				if (adjacency[j][max] < adjacency[j][y]) max = y;
+			}
+			p[max] = x; pp[x] = max;
+		}
+		return true;
+	}
+	
+	private boolean isMinimal3(){
+		for (int i=0; i<atoms.length-1; i++){
+			for (int j=i+1;  j<atoms.length; j++){
+				if (!swapInGraph(i,j)) return false;
+			}
+		}
+		return true;
+	}
+
+	private boolean swapInGraph(int i, int j){
+		for (int x=0; x<atoms.length-1; x++) {
+			for (int y=x+1; y<atoms.length; y++) {
+				if (x == i) {
+					/*[i][i] and [j][j] are on the diagonal and are zero*/
+					if (y == j) {
+						if (adjacency[i][j] /*f*/ < adjacency[j][i] /*g*/) return false;
+						if (adjacency[i][j] > adjacency[j][i]) return true;
+					} else  {
+						if (adjacency[i][y] /*a*/ < adjacency[j][y] /*b*/) return false;
+						if (adjacency[i][y] > adjacency[j][y]) return true;
+					}					
+				} else if (x != j && y == i) {
+					if (adjacency[x][i] /*c*/ < adjacency[x][j] /*d*/) return false;
+					if (adjacency[x][i] > adjacency[x][j]) return true;
+				} 
+			} 				
+		}
+		return true;
+	}
+	
+	/**
+	 * We know i < j.
+	 * @param i
+	 * @param j
+	 * @return
+	 */
+	private boolean swapInGraphOld(int i, int j) {
+		for (int x=0; x<atoms.length; x++) {
+			if (x == j) continue;	// already checked at i
+			if (x == i){
+				for (int y=0; y<atoms.length; y++){
+					/*[i][i] and [j][j] are on the diagonal and are zero*/
+					if (y == j) {
+						if (adjacency[i][j] /*f*/ < adjacency[j][i] /*g*/) return false;
+						if (adjacency[i][j] > adjacency[j][i]) return true;
+					} else {
+						if (adjacency[i][y] /*a*/ < adjacency[j][y] /*b*/) return false;
+						if (adjacency[i][y] > adjacency[j][y]) return true;
+					}
+				}				
+			} else {
+				if (adjacency[x][i] /*c*/ < adjacency[x][j] /*d*/) return false;
+				if (adjacency[x][i] > adjacency[x][j]) return true;
+			}
+		}
+		return true;
+	}
 
 	@Override
 	public void run() {
 		if (isComplete() && isConnectedDFS()) {
 			//					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
-//			MolProcessor newMol = this;
-//			if (semiCan) {
-//				// canonize 
-//				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-//				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1);
-//			}
 			long currentCount = PMG.molCounter.incrementAndGet();
-			if (semiCan && !isMinimalOrderly()/*!molSet.add(newMol.canString)*/) duplicate.incrementAndGet();
-			else {
+			MolProcessor newMol = this;
+			if (semiCan && hashMap) {
+				// canonize 
+				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
+				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, allPerm);
+			}
+			if (semiCan && (hashMap ? !molSet.add(newMol.canString):!isMinimal())) {
+				duplicate.incrementAndGet();
+/*/			
+			int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
+			int i;
+			for (i=0; i<atoms.length; i++) if (perm1[i] != i) break;
+			if (i<atoms.length){
+				 duplicate.incrementAndGet();
+*/
+			} else {
 				if(PMG.wFile){
 					writeMol(PMG.outFile, currentCount);
 				}
@@ -349,7 +470,7 @@ public class MolProcessor implements Runnable{
 			extMolList = addBond();
 
 		for (MolProcessor molecule : extMolList) {
-			if (!canAug && molSet.add(molecule.canString) == false) continue;
+			if (!canAug && !semiCan && molSet.add(molecule.canString) == false) continue;
 			PMG.pendingTasks.incrementAndGet();
 			PMG.startedTasks.incrementAndGet();
 			if (PMG.taskQueue.size() > PMG.executorCount*2) {

@@ -96,7 +96,7 @@ public class PMG{
 
 		System.out.println("CDK-free "+formula);
 		if (MolProcessor.canAug)  System.out.println("Using canonical augmentation with bliss as canonizer.");
-		if (MolProcessor.semiCan) System.out.println("Using semi-canonization and minimization.");
+		if (MolProcessor.semiCan) System.out.println("Using semi-canonization and "+(MolProcessor.hashMap?"hash map.":"minimization."));
 		if (executorCount > 1)    System.out.println("Parallel execution with "+executorCount+" threads.");
 		long before = System.currentTimeMillis();
 		startup(formula); 	
@@ -105,11 +105,11 @@ public class PMG{
 		long after = System.currentTimeMillis();		
 
 		// Report the number of generated molecules
-		System.out.println();
 		System.out.println("molecules:  " + molCounter.get());
 		System.out.println("duplicates: "+MolProcessor.duplicate.get()+"; non-duplicates: "+(molCounter.get()-MolProcessor.duplicate.get()));
-		System.out.println("Duration: " + (after - before) + " milliseconds\n");
+		System.out.println("Duration: " + (after - before) + " milliseconds");
 		System.out.println("Started Tasks: "+startedTasks.get());
+		System.in.read();
 	}
 
 	private static void help() {
