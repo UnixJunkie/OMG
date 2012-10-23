@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -22,7 +23,7 @@ import fi.tkk.ics.jbliss.Graph;
 public class MolProcessor implements Runnable{
 	static final boolean semiCan = true;
 	static final boolean canAug = !semiCan;
-	static final boolean hashMap = true;	// otherwise, minimality check (with semiCan)
+	static final boolean hashMap = false;	// otherwise, minimality check (with semiCan)
 	
 	public final Atom[] atoms;
 	final int nH;
@@ -33,7 +34,6 @@ public class MolProcessor implements Runnable{
 //	int []perm;
 	static AtomicLong duplicate = new AtomicLong(0);
 	final int startLeft, startRight;
-	final int[] mPerm;
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 	final LinkedList<LinkedList<int[]>> allPerm;
@@ -63,22 +63,24 @@ public class MolProcessor implements Runnable{
 		canString = "";
 		startLeft=0;
 		startRight=1;
-		mPerm = new int[atoms.length];
 		allPerm = new LinkedList<LinkedList<int[]>>();
-		if (!hashMap && semiCan) populate(allPerm);
+		//if (!hashMap && semiCan) populate(allPerm);
 //		perm = new int[atomCount];
 //		for (int i=0; i<atomCount; i++) perm[i] = i;
 	}
-	
+
+	private int[] identity(int length) {
+		int [] id = new int[length];
+		for (int i=0; i<length; i++) id[i] = i;
+		return id;
+	}
+
 	private void populate(LinkedList<LinkedList<int[]>> allPerm2) {
 		int n = atoms.length-1;
 		int permutation[] = new int[atoms.length];
 		long pCount = 0;
 		LinkedList<int[]> pList = new LinkedList<int[]>();
-		for (int i=0; i<atoms.length; i++){
-			permutation[i] = i;
-		}
-		pList.add(permutation);
+		pList.add(identity(atoms.length));
 		allPerm.add(pList);
 		while (--n>=0){
 			final LinkedList<LinkedList<int[]>> transPerm = new LinkedList<>();
@@ -126,7 +128,6 @@ public class MolProcessor implements Runnable{
 		this.canString = "";
 		this.startLeft = stL;
 		this.startRight = stR;
-		mPerm = new int[atoms.length];
 		this.allPerm = allPerm;
 	}
 		 	
@@ -145,7 +146,6 @@ public class MolProcessor implements Runnable{
 		this.canString = molString();
 		startLeft=0;
 		startRight=1;
-		mPerm = new int[atoms.length];
 		this.allPerm = allPerm;
 	}
 	
@@ -292,13 +292,13 @@ public class MolProcessor implements Runnable{
 	}
 		
 	/***************************************************************************************/
-	private boolean genPerm(int i){
+	private boolean genPerm(final int i, final int[] mPerm){
 		if (i==0) 
-			return checkMinimality();
+			return checkMinimality(mPerm);
 		for (int p=0; p<atoms.length; p++) {
 			if (mPerm[p] == 0 && atoms[p].symbol.equals(atoms[i].symbol)) {
 				mPerm[p] = i;
-				if (! genPerm(i-1))
+				if (! genPerm(i-1, mPerm))
 					return false;
 				mPerm[p] = 0;
 			}
@@ -306,11 +306,11 @@ public class MolProcessor implements Runnable{
 		return true;
 	}
 
-	private boolean checkMinimality() {
+	private boolean checkMinimality(final int[] perm) {
 		int[][] pAdjacency = new int [atoms.length][atoms.length];
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<atoms.length; j++){
-				pAdjacency[mPerm[i]][mPerm[j]] = adjacency[i][j];
+				pAdjacency[perm[i]][perm[j]] = adjacency[i][j];
 			}
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<atoms.length; j++){
@@ -321,7 +321,8 @@ public class MolProcessor implements Runnable{
 	}
 
 	private boolean isMinimal(){
-		return genPerm(atoms.length-1);
+		int [] mp = new int[atoms.length];
+		return genPerm(atoms.length-1, mp);
 	}
 	
 	private boolean isMinimalOrderly(){
@@ -435,6 +436,150 @@ public class MolProcessor implements Runnable{
 		return true;
 	}
 
+	//------------------------------------------
+	LinkedList<Integer>[] trans;
+	LinkedList<int[]>[] sPerm;
+	int[] iPerm;
+
+	class RowCompare {
+		boolean equal;
+		private int[] row_b_sorted;
+		private int base;
+		private int[] row_i_sorted;
+		
+		RowCompare (int base){
+			this.base = base;
+			row_b_sorted = sortInMatrix(base);
+		}
+		
+		boolean isSmallerThan (int i) {
+			equal = false;
+			for (int rowAboveBase = base-1; rowAboveBase >= 0; rowAboveBase--) {
+				if (adjacency[rowAboveBase][i] != adjacency[rowAboveBase][base]) return false;	// i and base cannot be swapped	
+			}
+			row_i_sorted = sortInMatrix(i);		
+			
+			for (int yCol=base; yCol<atoms.length; yCol++){	// adjacency[base][base] is zero, so we compare a[base][x+1] instead of a[base][x]
+				if (row_b_sorted[yCol] < row_i_sorted[yCol]) return true;
+				if (row_b_sorted[yCol] > row_i_sorted[yCol]) return false;
+			}
+			equal = true;
+			return false;
+		}
+		
+		/**
+		 * Sorts a given row (param i), considering all the rows and columns up to base (not including) to be fixed.
+		 * It means that two numbers in row i can be swapped if the corresponding columns do not change anything in
+		 * the rows above base.
+		 *  
+		 * @param i An integer showing the index of the row to be sorted.
+		 * @param base An integer showing the base row, up to which (but not including base itself) all rows and columns are fixed.
+		 * @return
+		 */
+		private int[] sortInMatrix(int i) {
+			int []iRow = adjacency[i].clone();
+			nextX: for (int xCol=base; xCol<atoms.length; xCol++){
+				nextY: for (int yCol=xCol+1; yCol<atoms.length; yCol++) {
+					if (iRow[xCol] < iRow[yCol]) {
+						for (int rowAboveBase = base-1; rowAboveBase >= 0; rowAboveBase--) {
+							if (adjacency[rowAboveBase][xCol] != adjacency[rowAboveBase][yCol]) continue nextX;	
+						}
+						if (!atoms[xCol].symbol.equals(atoms[yCol].symbol)) continue nextX;
+						int t=iRow[xCol]; 
+						iRow[xCol] = iRow[yCol]; 
+						iRow[yCol] = t;
+					}
+				}
+			}
+			return iRow;
+		}
+		
+//		private boolean canSwap(int xCol, int yCol){
+//			for (int rowAboveBase = base-1; rowAboveBase >= 0; rowAboveBase--) {
+//				if (adjacency[rowAboveBase][xCol] != adjacency[rowAboveBase][yCol]) {
+//					
+//				}
+//			}
+//		}
+	}
+	
+	/**----------------------------**/
+//	LinkedList<int[]> sPerm;
+	@SuppressWarnings("unchecked")
+	boolean isMinimalSort(){
+//		sPerm = new LinkedList<>();
+//		sPerm.add(identity(atoms.length));
+//		int[] mPerm = new int[atoms.length];
+		Arrays.fill(iPerm, -1);
+		trans = new LinkedList[atoms.length];
+		return sortCheckMin(0); // && checkPerms(0, mPerm);
+	}
+
+	private boolean sortCheckMin2(int base) {
+		if (base == atoms.length - 1) return true;
+		RowCompare baseRow = new RowCompare(base);
+		for (int row=base+1; row<atoms.length && atoms[base].symbol.equals(atoms[row].symbol); row++){
+			if (baseRow.isSmallerThan(row)) 
+				return false;
+			if (baseRow.equal) {
+				// add (row <- base) to possible permutations
+				if (iPerm[row] != -1){
+					iPerm[row] = base;
+					if (!sortCheckMin2(base+1)) return false;
+					iPerm[row] = -1;
+				}
+			}
+		}
+		return sortCheckMin2(base+1);
+	}
+
+
+	private boolean sortCheckMin(int base) {
+		if (base == atoms.length - 1) return true;
+		trans[base] = new LinkedList<>();
+		RowCompare baseRow = new RowCompare(base);
+		for (int row=base+1; row<atoms.length && atoms[base].symbol.equals(atoms[row].symbol); row++){
+			if (baseRow.isSmallerThan(row)) 
+				return false;
+			if (baseRow.equal) trans[base].add(row);	// TODO what does this actually means?
+		}
+		return sortCheckMin(base+1);
+	}
+
+	private boolean checkPerms(final int i, int [] mPerm) {
+		if (i==atoms.length-1) {
+			for (int x=0; x<mPerm.length; x++) if (mPerm[x] == -1) {mPerm[x] = atoms.length-1; break;}
+			return checkMinimality(mPerm);
+		}
+		for (int p:trans[i]) {
+			if (mPerm[p] == -1) {
+				mPerm[p] = i;
+				if (! checkPerms(i+1, mPerm))
+					return false;
+				mPerm[p] = -1;
+			}
+		}
+		return true;
+	}
+
+//	private void addPerm(int base, int i) {
+//		LinkedList<int[]> newPerms = new LinkedList<>();
+//		for (int[] aPerm:sPerm) {
+//			newPerms.add(join(aPerm, base, i));
+//		}
+//		sPerm.addAll(newPerms);
+//	}
+//
+//	private int[] join(int[] aPerm, int base, int row) {
+//		int[] newPerm = new int[atoms.length];
+//		for (int i=0; i<atoms.length; i++){
+//			if (i==base)     newPerm[i] = aPerm[row];
+//			else if (i==row) newPerm[i] = aPerm[base];
+//			else             newPerm[i] = aPerm[i];
+//		}
+//		return newPerm;
+//	}
+
 	@Override
 	public void run() {
 		if (isComplete() && isConnectedDFS()) {
@@ -446,7 +591,7 @@ public class MolProcessor implements Runnable{
 				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
 				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, allPerm);
 			}
-			if (semiCan && (hashMap ? !molSet.add(newMol.canString):!isMinimal())) {
+			if (semiCan && (hashMap ? !molSet.add(newMol.canString):!isMinimalSort())) {
 				duplicate.incrementAndGet();
 /*/			
 			int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
@@ -458,6 +603,7 @@ public class MolProcessor implements Runnable{
 			} else {
 				if(PMG.wFile){
 					writeMol(PMG.outFile, currentCount);
+					outputMatrix();
 				}
 			}
 		}	
@@ -482,6 +628,16 @@ public class MolProcessor implements Runnable{
 		PMG.pendingTasks.decrementAndGet();
 	}
 
+
+	private void outputMatrix() {
+		System.out.println("-------------------------------------------");
+		for (int i=0; i<atoms.length; i++) {
+			for (int j=0; j<atoms.length; j++){
+				System.out.print(adjacency[i][j]);
+			}
+			System.out.println();
+		}
+	}
 
 	private ArrayList<MolProcessor> addBondSemiCan() {
 		ArrayList<MolProcessor> extMolList = new ArrayList<>();
