@@ -436,32 +436,23 @@ public class MolProcessor implements Runnable{
 		return true;
 	}
 
-	//------------------------------------------
-	LinkedList<Integer>[] trans;
-	LinkedList<int[]>[] sPerm;
-	int[] iPerm;
-
+	//---------------------------------------------------------------
 	class RowCompare {
 		boolean equal;
-		private int[] row_b_sorted;
 		private int base;
 		private int[] row_i_sorted;
 		
 		RowCompare (int base){
 			this.base = base;
-			row_b_sorted = sortInMatrix(base);
 		}
 		
 		boolean isSmallerThan (int i) {
 			equal = false;
-			for (int rowAboveBase = base-1; rowAboveBase >= 0; rowAboveBase--) {
-				if (adjacency[rowAboveBase][i] != adjacency[rowAboveBase][base]) return false;	// i and base cannot be swapped	
-			}
 			row_i_sorted = sortInMatrix(i);		
-			
-			for (int yCol=base; yCol<atoms.length; yCol++){	// adjacency[base][base] is zero, so we compare a[base][x+1] instead of a[base][x]
-				if (row_b_sorted[yCol] < row_i_sorted[yCol]) return true;
-				if (row_b_sorted[yCol] > row_i_sorted[yCol]) return false;
+			if (row_i_sorted == null) return false;
+			for (int yCol=base+1; yCol<atoms.length; yCol++){	
+				if (adjacency[base][yCol] < row_i_sorted[yCol]) return true;
+				if (adjacency[base][yCol] > row_i_sorted[yCol]) return false;
 			}
 			equal = true;
 			return false;
@@ -477,63 +468,158 @@ public class MolProcessor implements Runnable{
 		 * @return
 		 */
 		private int[] sortInMatrix(int i) {
-			int []iRow = adjacency[i].clone();
-			nextX: for (int xCol=base; xCol<atoms.length; xCol++){
-				nextY: for (int yCol=xCol+1; yCol<atoms.length; yCol++) {
-					if (iRow[xCol] < iRow[yCol]) {
-						for (int rowAboveBase = base-1; rowAboveBase >= 0; rowAboveBase--) {
-							if (adjacency[rowAboveBase][xCol] != adjacency[rowAboveBase][yCol]) continue nextX;	
-						}
-						if (!atoms[xCol].symbol.equals(atoms[yCol].symbol)) continue nextX;
-						int t=iRow[xCol]; 
-						iRow[xCol] = iRow[yCol]; 
-						iRow[yCol] = t;
+			int []iRow = new int[atoms.length];
+			int []tPerm = iPerm.clone();
+			for (int tillBase=0; tillBase<atoms.length; tillBase++)
+				if (iPerm[tillBase] != -1)
+					iRow[iPerm[tillBase]] = adjacency[i][tillBase];
+			for (int xCol=base+1; xCol<atoms.length; xCol++){
+				int max=-1;
+				for (int yCol=atoms.length-1; yCol>=0; yCol--) {
+					if (iRow[xCol] <= adjacency[i][yCol] && tPerm[yCol] == -1 && atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
+						iRow[xCol] = adjacency[i][yCol];
+						max = yCol;
 					}
 				}
+				if (max == -1) 
+					return null;
+				tPerm[max] = xCol;
 			}
 			return iRow;
 		}
-		
-//		private boolean canSwap(int xCol, int yCol){
-//			for (int rowAboveBase = base-1; rowAboveBase >= 0; rowAboveBase--) {
-//				if (adjacency[rowAboveBase][xCol] != adjacency[rowAboveBase][yCol]) {
-//					
-//				}
-//			}
-//		}
+
+		private void swap(int[] iRow, int xCol, int yCol) {
+			int t = iRow[xCol]; 
+			iRow[xCol] = iRow[yCol]; 
+			iRow[yCol] = t;
+		}
 	}
 	
-	/**----------------------------**/
-//	LinkedList<int[]> sPerm;
+	LinkedList<Integer>[] trans;
+	int[] iPerm;
 	@SuppressWarnings("unchecked")
 	boolean isMinimalSort(){
-//		sPerm = new LinkedList<>();
-//		sPerm.add(identity(atoms.length));
-//		int[] mPerm = new int[atoms.length];
-		Arrays.fill(iPerm, -1);
 		trans = new LinkedList[atoms.length];
-		return sortCheckMin(0); // && checkPerms(0, mPerm);
+		iPerm = new int[atoms.length];
+		Arrays.fill(iPerm, -1);
+//		trans = new LinkedList[atoms.length];
+		return sortCheckMin2(0); // && checkPerms(0, mPerm);
 	}
 
 	private boolean sortCheckMin2(int base) {
 		if (base == atoms.length - 1) return true;
+		trans[base] = new LinkedList<>();
 		RowCompare baseRow = new RowCompare(base);
-		for (int row=base+1; row<atoms.length && atoms[base].symbol.equals(atoms[row].symbol); row++){
-			if (baseRow.isSmallerThan(row)) 
-				return false;
-			if (baseRow.equal) {
-				// add (row <- base) to possible permutations
-				if (iPerm[row] != -1){
-					iPerm[row] = base;
-					if (!sortCheckMin2(base+1)) return false;
-					iPerm[row] = -1;
-				}
-			}
+		for (int row=0; row<atoms.length; row++){	// even check row == base
+			// check what happens if base <- row ?
+			if (iPerm[row] != -1 || !atoms[base].symbol.equals(atoms[row].symbol)) continue;
+//			if (row < base) {
+//				if (!trans[row].contains(base)) continue;
+//			} else if (row >= base) {
+				if (!areCompatible(row, base, base)) continue;
+				iPerm[row] = base;
+				if (baseRow.isSmallerThan(row)) 
+					return false;
+				iPerm[row] = -1;
+				if (! baseRow.equal) continue; 
+//			}
+			trans[base].add(row);
 		}
-		return sortCheckMin2(base+1);
+		for (int row:trans[base]){
+			iPerm[row] = base;
+			if (!sortCheckMin2(base+1)) return false;
+			iPerm[row] = -1;
+		}
+		return true;
 	}
 
+	private boolean canBeMapped(int row, int base) {
+		int b = iPerm[base];
+		while (b != -1 && b != base) {
+			if (b == row) return true;
+			b = iPerm[b];
+		}
+		return false;
+	}
 
+	private boolean areCompatible(int src, int dst, int base) {
+		for (int above=0; above<atoms.length; above++) {
+			if (iPerm[above] != -1 && iPerm[above]!=base && adjacency[above][src] != adjacency[iPerm[above]][dst]) return false;
+		}
+		return true;
+	}
+
+	//----------------------------------------------------------------------------------------
+	/**
+	 * This function works, but takes too long. Now we want to improve it by using "sorting" 
+	 * instead of checking all permutations to find a bigger graph at each step.
+	 * @return whether the current graph is minimal
+	 */
+	@SuppressWarnings("unchecked")
+	boolean isMinimal0ToN(){
+		iPerm = new int[atoms.length];
+		Arrays.fill(iPerm, -1);
+		return sortCheckMin2(0); // && checkPerms(0, mPerm);
+	}
+	private boolean checkMin2(int base) {
+		if (base == atoms.length - 1) return true;
+		RowPermute baseRow = new RowPermute(base);
+		for (int row=0; row<atoms.length && atoms[base].symbol.equals(atoms[row].symbol); row++){	// even check row == base
+			// check what happens if base <- row ?
+			if (iPerm[row] != -1) continue;
+			if (row < base) {
+				if (!canBeMapped(row, base)) continue;
+			} else if (row > base) {
+				if (baseRow.existsBiggerPerm(row)) return false;
+				if (! baseRow.equal) continue; 
+			}
+			iPerm[row] = base;
+			if (!sortCheckMin2(base+1)) return false;
+			iPerm[row] = -1;
+		}
+		return true;
+	}
+	
+	class RowPermute{
+		boolean equal;
+		int base;
+		int [] perm;
+		
+		RowPermute(int base){
+			this.base = base;
+		}
+		
+		boolean existsBiggerPerm(int row){
+			equal = false;
+			this.perm = iPerm.clone();
+			this.perm[row] = base;
+			if (this.existsBigger(base+1)) return true;
+			return false;
+		}
+
+		private boolean existsBigger(int depth) {
+			if (depth==atoms.length) return compare();
+			for (int i=0; i<atoms.length; i++){
+				if (perm[i] == -1) {
+					perm[i] = depth;
+					if (existsBigger(depth+1)) return true;
+					perm[i] = -1;
+				}
+			}
+			return false;
+		}
+
+		private boolean compare() {
+			for (int row=0; row<atoms.length; row++)
+				for (int col=row+1; col<atoms.length; col++) {
+					if (adjacency[row][col] < adjacency[perm[row]][perm[col]]) return true;
+					if (adjacency[row][col] > adjacency[perm[row]][perm[col]]) return false;
+				}
+			equal = true;
+			return false;
+		}
+	}
+	//----------------------------------------------------------------------------------------
 	private boolean sortCheckMin(int base) {
 		if (base == atoms.length - 1) return true;
 		trans[base] = new LinkedList<>();
@@ -541,7 +627,7 @@ public class MolProcessor implements Runnable{
 		for (int row=base+1; row<atoms.length && atoms[base].symbol.equals(atoms[row].symbol); row++){
 			if (baseRow.isSmallerThan(row)) 
 				return false;
-			if (baseRow.equal) trans[base].add(row);	// TODO what does this actually means?
+			if (baseRow.equal) trans[base].add(row);	// TODO what does this actually mean?
 		}
 		return sortCheckMin(base+1);
 	}
@@ -562,23 +648,6 @@ public class MolProcessor implements Runnable{
 		return true;
 	}
 
-//	private void addPerm(int base, int i) {
-//		LinkedList<int[]> newPerms = new LinkedList<>();
-//		for (int[] aPerm:sPerm) {
-//			newPerms.add(join(aPerm, base, i));
-//		}
-//		sPerm.addAll(newPerms);
-//	}
-//
-//	private int[] join(int[] aPerm, int base, int row) {
-//		int[] newPerm = new int[atoms.length];
-//		for (int i=0; i<atoms.length; i++){
-//			if (i==base)     newPerm[i] = aPerm[row];
-//			else if (i==row) newPerm[i] = aPerm[base];
-//			else             newPerm[i] = aPerm[i];
-//		}
-//		return newPerm;
-//	}
 
 	@Override
 	public void run() {
@@ -603,7 +672,7 @@ public class MolProcessor implements Runnable{
 			} else {
 				if(PMG.wFile){
 					writeMol(PMG.outFile, currentCount);
-					outputMatrix();
+					outputMatrix(PMG.matrixFile);
 				}
 			}
 		}	
@@ -629,13 +698,21 @@ public class MolProcessor implements Runnable{
 	}
 
 
-	private void outputMatrix() {
-		System.out.println("-------------------------------------------");
+	private void outputMatrix(BufferedWriter out) {
+		StringWriter writer = new StringWriter();
+		writer.write(PMG.formula+"\n");
+		writer.write("-----------"+(PMG.molCounter.get()-duplicate.get())+"\n");
 		for (int i=0; i<atoms.length; i++) {
 			for (int j=0; j<atoms.length; j++){
-				System.out.print(adjacency[i][j]);
+				writer.write(""+adjacency[i][j]);
 			}
-			System.out.println();
+			writer.write("\n");
+		}
+		try {
+			out.write(writer.toString());
+		} catch (IOException e) {
+			System.err.println("Could not output to Matrix.");
+			e.printStackTrace();
 		}
 	}
 
