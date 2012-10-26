@@ -44,7 +44,7 @@ import org.omg.tools.*;
 
 public class PMG{
 	/**Output File containing the list of graph. */
-	static BufferedWriter outFile;
+	static BufferedWriter outFile, matrixFile;
 	final static AtomicLong molCounter = new AtomicLong(0);
 	final static AtomicLong pendingTasks = new AtomicLong(0);
 	final static AtomicLong startedTasks = new AtomicLong(0);
@@ -53,6 +53,7 @@ public class PMG{
 	static ThreadPoolExecutor executor;
 	static int executorCount;
 	static boolean wFile;
+	static String formula = null;
 		
 	private static void startup (String formula) {
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
@@ -64,8 +65,6 @@ public class PMG{
 	}
 
 	public static void main(String[] args) throws IOException{
-		// parse the command-line arguments
-		String formula = null;
 		wFile = false;
 		String out = "default_out.sdf";
 		executorCount = Runtime.getRuntime().availableProcessors();
@@ -91,7 +90,10 @@ public class PMG{
 			System.exit(0);
 		}
 		
-		if (wFile) outFile = new BufferedWriter(new FileWriter(out));
+		if (wFile) {
+			outFile = new BufferedWriter(new FileWriter(out));
+			matrixFile = new BufferedWriter(new FileWriter(out+".txt"));
+		}
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 
 		System.out.println("CDK-free "+formula);
@@ -130,7 +132,7 @@ public class PMG{
 		}
 		
 		try {
-			if (wFile) outFile.close();
+			if (wFile) {outFile.close(); matrixFile.close();}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
