@@ -62,10 +62,67 @@ Duration: 11026 miliseconds
 C12H26
 molecules 355
 Duration: 39041 miliseconds
+-----------------
+CDK-free C12H26
+Using semi-canonization and hashmap.
+molecules:  34892
+duplicates: 34537; non-duplicates: 355
+Duration: 18011 milliseconds
+Started Tasks: 15483470
 
+CDK-free C12H26
+Using semi-canonization and minimization.
+molecules:  34892
+duplicates: 34537; non-duplicates: 355
+Duration: 18011 milliseconds
+Started Tasks: 15483470
+
+CDK-free C12H26
+Using canonical augmentation with bliss as canonizer.
+Parallel execution with 4 threads.
+molecules:  355
+duplicates: 0; non-duplicates: 355
+Duration: 36017 milliseconds
+Started Tasks: 66871
+
+----------------
+CDK-free C13H28
+Using semi-canonization and minimization. (is it correctly working?)
+Parallel execution with 4 threads.
+molecules:  112696
+duplicates: 111894; non-duplicates: 802
+Duration: 47015 milliseconds
+Started Tasks: 86294373
+
+CDK-free C13H28
+Using canonical augmentation with bliss as canonizer.
+Parallel execution with 4 threads.
+molecules:  802
+duplicates: 0; non-duplicates: 802
+Duration: 143018 milliseconds
+Started Tasks: 230268
+----------------
 C14H30
 molecules 1858
 Duration: 767158 miliseconds
+   -----
+CDK-free C14H30
+Using semi-canonization with hashmap.
+Parallel execution with 4 threads.
+molecules:  366808
+duplicates: 364950; non-duplicates: 1858
+Duration: 292074 milliseconds
+Started Tasks: 485495593
+
+CDK-free C14H30
+Using semi-canonization and minimization.
+Parallel execution with 4 threads.
+molecules:  366808
+duplicates: 364950; non-duplicates: 1858
+Duration: 273063 milliseconds
+Started Tasks: 485495593
+   -----
+
 
 C4H7NO3
 molecules 23096
@@ -83,7 +140,7 @@ Octane C8H18 18 isomers
 Nonane C9H20 35 isomers
 Decane C10H22 75 isomers
 C5H12	3
-C6Hi4	5
+C6H14	5
 C7H16	9
 C8H18	18
 C9H20	35
@@ -123,6 +180,14 @@ Duration: 17389 milliseconds
 
 
 ---- Aug 3
+CDK-free C3H7NO2S
+Using semi-canonization and minimization.
+Parallel execution with 4 threads.
+molecules:  648482
+duplicates: 495820; non-duplicates: 152662
+Duration: 7017 milliseconds
+Started Tasks: 1246872
+
 CDK-free: C3H7NO2S
 molecules 152662
 Duration: 32016 milliseconds
@@ -136,6 +201,14 @@ Started tasks: 290583
 
 
 ======= semi-canonical ===================================
+CDK-free C4H6O5
+Using semi-canonization and minimization.
+Parallel execution with 4 threads.
+molecules:  71638
+duplicates: 63568; non-duplicates: 8070
+Duration: 2012 milliseconds
+Started Tasks: 501510
+
 CDK-free C4H6O5 with semi-canonical. (p==1)
 molecules:  71638
 duplicates: 63568; non-duplicates: 8070
@@ -149,6 +222,26 @@ duplicates: 0; non-duplicates: 8070
 Duration: 31014 milliseconds
 Started Tasks: 56818
 ---------------------
+CDK-free C4H7NO3
+Using semi-canonization and minimization. (== sorting algorithm)
+Parallel execution with 4 threads.
+molecules:  527532
+duplicates: 458695; non-duplicates: 68837
+Duration: 5028 milliseconds
+Started Tasks: 1704313
+
+CDK-free C4H7NO3 + bliss-free semi-canonicity (+minimality test) - p==1
+molecules:  527532
+duplicates: 458695; non-duplicates: 68837
+Duration: 7019 milliseconds
+Started Tasks: 1704313
+
+CDK-free C4H7NO3 + bliss-free semi-canonicity (+minimality test) -- p==4
+molecules:  527532
+duplicates: 458695; non-duplicates: 68837
+Duration: 4025 milliseconds
+Started Tasks: 1704313
+
 CDK-free C4H7NO3 with semi-canonical. (p==1)
 molecules:  527532
 duplicates: 458695; non-duplicates: 68837
