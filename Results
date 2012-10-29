@@ -122,7 +122,15 @@ duplicates: 364950; non-duplicates: 1858
 Duration: 273063 milliseconds
 Started Tasks: 485495593
    -----
-
+CDK-free C16H34 (cloud)
+Using semi-canonization and minimization.
+Parallel execution with 8 threads.
+molecules:  3961765
+duplicates: 3951406; non-duplicates: 10359
+Duration: 9740666 milliseconds
+Started Tasks: 15757347766
+(360 MiB memory, time=2:42:20)
+---------------
 
 C4H7NO3
 molecules 23096
