@@ -31,12 +31,10 @@ public class MolProcessor implements Runnable{
 	final String canString;
 	final Graph graph;
 	final int[][] adjacency;
-//	int []perm;
-	static AtomicLong duplicate = new AtomicLong(0);
+	final static AtomicLong duplicate = new AtomicLong(0);
 	final int startLeft, startRight;
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
-	final LinkedList<LinkedList<int[]>> allPerm;
 	
 	
 	public MolProcessor(final ArrayList<String> atomSymbols){
@@ -63,16 +61,6 @@ public class MolProcessor implements Runnable{
 		canString = "";
 		startLeft=0;
 		startRight=1;
-		allPerm = new LinkedList<LinkedList<int[]>>();
-		//if (!hashMap && semiCan) populate(allPerm);
-//		perm = new int[atomCount];
-//		for (int i=0; i<atomCount; i++) perm[i] = i;
-	}
-
-	private int[] identity(int length) {
-		int [] id = new int[length];
-		for (int i=0; i<length; i++) id[i] = i;
-		return id;
 	}
 
 	/**
@@ -87,7 +75,7 @@ public class MolProcessor implements Runnable{
 	 */
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
 			            final int[][] adjacency, final Graph gr, 
-			            final int stL, final int stR, final LinkedList<LinkedList<int[]>> allPerm) {
+			            final int stL, final int stR) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -100,12 +88,10 @@ public class MolProcessor implements Runnable{
 		this.canString = "";
 		this.startLeft = stL;
 		this.startRight = stR;
-		this.allPerm = allPerm;
 	}
 		 	
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, final int[] canPerm,
-			            final LinkedList<LinkedList<int[]>> allPerm) {
+			            final int[][] adjacency, final Graph gr, final int[] canPerm) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -118,7 +104,6 @@ public class MolProcessor implements Runnable{
 		this.canString = molString();
 		startLeft=0;
 		startRight=1;
-		this.allPerm = allPerm;
 	}
 	
 	private String molString(){
@@ -316,12 +301,6 @@ public class MolProcessor implements Runnable{
 			}
 			return iRow;
 		}
-
-		private void swap(int[] iRow, int xCol, int yCol) {
-			int t = iRow[xCol]; 
-			iRow[xCol] = iRow[yCol]; 
-			iRow[yCol] = t;
-		}
 	}
 	
 	LinkedList<Integer>[] trans;
@@ -379,76 +358,6 @@ public class MolProcessor implements Runnable{
 	}
 
 	//----------------------------------------------------------------------------------------
-	/**
-	 * This function works, but takes too long. Now we want to improve it by using "sorting" 
-	 * instead of checking all permutations to find a bigger graph at each step.
-	 * @return whether the current graph is minimal
-	 */
-	@SuppressWarnings("unchecked")
-	boolean isMinimal0ToN(){
-		iPerm = new int[atoms.length];
-		Arrays.fill(iPerm, -1);
-		return sortCheckMin2(0); // && checkPerms(0, mPerm);
-	}
-	private boolean checkMin2(int base) {
-		if (base == atoms.length - 1) return true;
-		RowPermute baseRow = new RowPermute(base);
-		for (int row=0; row<atoms.length && atoms[base].symbol.equals(atoms[row].symbol); row++){	// even check row == base
-			// check what happens if base <- row ?
-			if (iPerm[row] != -1) continue;
-			if (row < base) {
-				if (!canBeMapped(row, base)) continue;
-			} else if (row > base) {
-				if (baseRow.existsBiggerPerm(row)) return false;
-				if (! baseRow.equal) continue; 
-			}
-			iPerm[row] = base;
-			if (!sortCheckMin2(base+1)) return false;
-			iPerm[row] = -1;
-		}
-		return true;
-	}
-	
-	class RowPermute{
-		boolean equal;
-		int base;
-		int [] perm;
-		
-		RowPermute(int base){
-			this.base = base;
-		}
-		
-		boolean existsBiggerPerm(int row){
-			equal = false;
-			this.perm = iPerm.clone();
-			this.perm[row] = base;
-			if (this.existsBigger(base+1)) return true;
-			return false;
-		}
-
-		private boolean existsBigger(int depth) {
-			if (depth==atoms.length) return compare();
-			for (int i=0; i<atoms.length; i++){
-				if (perm[i] == -1) {
-					perm[i] = depth;
-					if (existsBigger(depth+1)) return true;
-					perm[i] = -1;
-				}
-			}
-			return false;
-		}
-
-		private boolean compare() {
-			for (int row=0; row<atoms.length; row++)
-				for (int col=row+1; col<atoms.length; col++) {
-					if (adjacency[row][col] < adjacency[perm[row]][perm[col]]) return true;
-					if (adjacency[row][col] > adjacency[perm[row]][perm[col]]) return false;
-				}
-			equal = true;
-			return false;
-		}
-	}
-	//----------------------------------------------------------------------------------------
 
 	@Override
 	public void run() {
@@ -459,7 +368,7 @@ public class MolProcessor implements Runnable{
 			if (semiCan && hashMap) {
 				// canonize 
 				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, allPerm);
+				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1);
 			}
 			if (semiCan && (hashMap ? !molSet.add(newMol.canString):!isMinimalSort())) {
 				duplicate.incrementAndGet();
@@ -526,7 +435,7 @@ public class MolProcessor implements Runnable{
 			for (int right = left+1; right < atoms.length; right++){
 				if (left == startLeft && right<startRight) continue;
 				if (incBondSemiCan(left, right)) {	
-					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right, allPerm)); 
+					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right)); 
 					decBond(left,right);
 				}
 			}
@@ -553,7 +462,7 @@ public class MolProcessor implements Runnable{
 		}
 		if (startLeft == atoms.length-1) return extMolList;
 		do {
-			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight, allPerm));
+			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight));
 			order += 2;
 		}while(incBondSemiCan(startLeft, startRight));
 		
@@ -576,7 +485,7 @@ public class MolProcessor implements Runnable{
 					if (!incBond(left, right)) continue;	
 					// canonize 
 					int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1, allPerm);
+					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1);
 					if (visited.add(newMol.canString)) {	
 						if (!canAug || canString.equals("") || canString.equals(newMol.canDel())){ 
 							extMolList.add(newMol); 
@@ -601,7 +510,7 @@ public class MolProcessor implements Runnable{
 		}
 		decBond(left, right);
 		int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1, allPerm);
+		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1);
 		incBond(left, right);
 		return tempMol.canString;
 	}
