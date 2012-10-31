@@ -44,9 +44,10 @@ import org.omg.tools.*;
 
 public class PMG{
 	/**Output File containing the list of graph. */
-	static BufferedWriter outFile, matrixFile;
+	static BufferedWriter outFile, matrixFile, rejectedFile, CDKFile;
 	static AtomicInteger availThreads;
 	final static AtomicLong molCounter = new AtomicLong(0);
+	final static AtomicLong rejectedByCDK = new AtomicLong(0);
 	final static AtomicLong pendingTasks = new AtomicLong(0);
 	final static AtomicLong startedTasks = new AtomicLong(0);
 	final static SaturationChecker satCheck = new SaturationChecker();
@@ -59,7 +60,7 @@ public class PMG{
 	private static void startup (String formula) {
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
 		if (atomSymbols == null) System.exit(1);
-		MolProcessor mp = new MolProcessor(atomSymbols);
+		MolProcessor mp = new MolProcessor(atomSymbols, formula);
 		startedTasks.getAndIncrement();
 		pendingTasks.getAndIncrement();
 		executor.execute(mp);
@@ -93,6 +94,8 @@ public class PMG{
 		
 		if (wFile) {
 			outFile = new BufferedWriter(new FileWriter(out));
+			rejectedFile =  new BufferedWriter(new FileWriter("Rejected_"+out));
+			CDKFile = new BufferedWriter(new FileWriter("CDK_"+out));
 			matrixFile = new BufferedWriter(new FileWriter(out+".txt"));
 		}
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
@@ -111,6 +114,7 @@ public class PMG{
 		// Report the number of generated molecules
 		System.out.println("molecules:  " + molCounter.get());
 		System.out.println("duplicates: "+MolProcessor.duplicate.get()+"; non-duplicates: "+(molCounter.get()-MolProcessor.duplicate.get()));
+		System.out.println("Rejected by CDK: "+rejectedByCDK.get()+"; Final count: "+(molCounter.get()-MolProcessor.duplicate.get()-rejectedByCDK.get()));
 		System.out.println("Duration: " + (after - before) + " milliseconds");
 		System.out.println("Started Tasks: "+startedTasks.get());
 		System.in.read();
@@ -134,7 +138,7 @@ public class PMG{
 		}
 		
 		try {
-			if (wFile) {outFile.close(); matrixFile.close();}
+			if (wFile) {outFile.close(); matrixFile.close(); rejectedFile.close(); CDKFile.close(); }
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

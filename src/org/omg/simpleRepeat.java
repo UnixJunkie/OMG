@@ -51,7 +51,7 @@ public class simpleRepeat{
 		System.out.println("repetitive canonization of "+formula);
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
 		if (atomSymbols == null) System.exit(1);
-		MolProcessor mp = new MolProcessor(atomSymbols);
+		MolProcessor mp = new MolProcessor(atomSymbols, formula);
 		new Graph(mp.atoms.length).repeat(mp);
 	}
 }

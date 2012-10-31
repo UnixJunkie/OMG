@@ -13,10 +13,19 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.omg.tools.Atom;
+import org.openscience.cdk.DefaultChemObjectBuilder;
+import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.interfaces.IBond.Order;
+import org.openscience.cdk.interfaces.ICDKObject;
+import org.openscience.cdk.io.MDLV2000Writer;
+import org.openscience.cdk.tools.CDKHydrogenAdder;
+import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
+import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 import fi.tkk.ics.jbliss.Graph;
 
@@ -33,11 +42,12 @@ public class MolProcessor implements Runnable{
 	final int[][] adjacency;
 	final static AtomicLong duplicate = new AtomicLong(0);
 	final int startLeft, startRight;
+	private final IAtomContainer acontainer;
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 	
 	
-	public MolProcessor(final ArrayList<String> atomSymbols){
+	public MolProcessor(final ArrayList<String> atomSymbols, String formula){
 		int nH=0;
 		int maxOpenings=0;
 		int atomCount=0;
@@ -61,6 +71,23 @@ public class MolProcessor implements Runnable{
 		canString = "";
 		startLeft=0;
 		startRight=1;
+		IAtomContainer lcontainer;
+		do {	// this stupid loop is here only because CDK is not stable with respect to the order of the atoms it returns
+			lcontainer = MolecularFormulaManipulator.getAtomContainer(
+				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
+		}while(!inRightOrder(atomSymbols, lcontainer));	// make sure the order is as we want
+		acontainer = lcontainer;
+	}
+
+	private boolean inRightOrder(ArrayList<String> atomSymbols, IAtomContainer lcontainer) {
+		int atom = 0;
+		for (String symbol:atomSymbols){
+			if (symbol.equals("H")) continue;	// skip hydrogens
+			while (lcontainer.getAtom(atom).getSymbol().equals("H")) { lcontainer.removeAtom(atom); } // remove hydrogens
+			String symbol2 = lcontainer.getAtom(atom++).getSymbol();
+			if (!symbol2.equals(symbol)) return false;	// compare other atoms
+		}
+		return true;
 	}
 
 	/**
@@ -75,7 +102,7 @@ public class MolProcessor implements Runnable{
 	 */
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
 			            final int[][] adjacency, final Graph gr, 
-			            final int stL, final int stR) {
+			            final int stL, final int stR, final IAtomContainer acontainer) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -88,10 +115,11 @@ public class MolProcessor implements Runnable{
 		this.canString = "";
 		this.startLeft = stL;
 		this.startRight = stR;
+		this.acontainer = acontainer;
 	}
 		 	
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, final int[] canPerm) {
+			            final int[][] adjacency, final Graph gr, final int[] canPerm, final IAtomContainer acontainer) {
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -104,6 +132,7 @@ public class MolProcessor implements Runnable{
 		this.canString = molString();
 		startLeft=0;
 		startRight=1;
+		this.acontainer = acontainer;
 	}
 	
 	private String molString(){
@@ -389,7 +418,7 @@ public class MolProcessor implements Runnable{
 		while (avail>0) {
 			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
 				PMG.pendingTasks.incrementAndGet();
-				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, left, right));
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, left, right, acontainer));
 				return;
 			}
 			avail = PMG.availThreads.get();
@@ -404,17 +433,66 @@ public class MolProcessor implements Runnable{
 			if (hashMap) {
 				// canonize 
 				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1);
+				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, acontainer);
 			}
 			if (hashMap ? !molSet.add(newMol.canString):!new SortCompare().isMinimal()) {
 				duplicate.incrementAndGet();
 			} else {
+				BufferedWriter theOutFile = PMG.outFile;
+				if (!acceptedByCDK()){
+					PMG.rejectedByCDK.incrementAndGet();
+					theOutFile = PMG.rejectedFile;
+				}
 				if(PMG.wFile){
-					writeMol(PMG.outFile, currentCount);
+					writeMol(theOutFile, currentCount);
 					outputMatrix(PMG.matrixFile);
 				}
 			}
 		}	
+	}
+
+	private boolean acceptedByCDK() {
+//		acontainer.removeAllBonds();
+		try {
+			IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
+			for (int r=0; r<atoms.length; r++)
+				for (int c=r+1; c<atoms.length; c++) 
+					if (adjacency[r][c] > 0) acprotonate.addBond(r, c, bondOrder(adjacency[r][c]));
+			CDKAtomTypeMatcher typeMatcher = CDKAtomTypeMatcher.getInstance(acprotonate.getBuilder());
+			for (IAtom atom : acprotonate.atoms()) {
+				IAtomType type;
+				type = typeMatcher.findMatchingAtomType(acprotonate, atom);
+				if (type == null) return false;
+				AtomTypeManipulator.configure(atom, type);	// TODO: What does this line mean? Is this method correct at all?!
+			}
+			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+			if (PMG.wFile) {
+				StringWriter writer = new StringWriter();
+				MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
+				mdlWriter.write(acprotonate);
+				writer.append("> <Id>\n"+(PMG.molCounter.get())+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
+				PMG.CDKFile.write(writer.toString());
+			}
+		} catch (CDKException e) {
+			return false;
+		} catch (CloneNotSupportedException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return true;		
+	}
+
+
+	private Order bondOrder(int i) {
+		switch (i){
+			case 1: return IBond.Order.SINGLE;
+			case 2: return IBond.Order.DOUBLE;
+			case 3: return IBond.Order.TRIPLE;
+			case 4: return IBond.Order.QUADRUPLE;
+		}
+		return null;
 	}
 
 	private ArrayList<MolProcessor> addBondSemiCan() {
@@ -426,7 +504,7 @@ public class MolProcessor implements Runnable{
 			for (int right = left+1; right < atoms.length; right++){
 				if (left == startLeft && right<startRight) continue;
 				if (incBondSemiCan(left, right)) {	
-					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right)); 
+					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right, acontainer)); 
 					decBond(left,right);
 				}
 			}
@@ -453,7 +531,7 @@ public class MolProcessor implements Runnable{
 		}
 		if (startLeft == atoms.length-1) return extMolList;
 		do {
-			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight));
+			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight, acontainer));
 			order += 2;
 		}while(incBondSemiCan(startLeft, startRight));
 		
@@ -476,7 +554,7 @@ public class MolProcessor implements Runnable{
 					if (!incBond(left, right)) continue;	
 					// canonize 
 					int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1);
+					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1, acontainer);
 					if (visited.add(newMol.canString)) {	
 						if (!canAug || canString.equals("") || canString.equals(newMol.canDel())){ 
 							extMolList.add(newMol); 
@@ -501,7 +579,7 @@ public class MolProcessor implements Runnable{
 		}
 		decBond(left, right);
 		int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1);
+		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1, acontainer);
 		incBond(left, right);
 		return tempMol.canString;
 	}
