@@ -27,7 +27,7 @@ public class MolProcessor implements Runnable{
 	
 	public final Atom[] atoms;
 	final int nH;
-	final int maxOpenings;
+	int maxOpenings;
 	final String canString;
 	final Graph graph;
 	final int[][] adjacency;
@@ -119,7 +119,7 @@ public class MolProcessor implements Runnable{
 		return adjacency[l][r];
 	}
 
-	private int openings = 0;
+	private int openings;
 	private boolean addUpOpenings(final int atomNum) {
 		if (atoms.length == atomNum) 
 			return openings == nH;
@@ -142,6 +142,7 @@ public class MolProcessor implements Runnable{
 	
 	public boolean isComplete() {
 		if (maxOpenings == 0) return true;
+		openings = 0;
 		return addUpOpenings (0);
 	}
 
@@ -248,165 +249,68 @@ public class MolProcessor implements Runnable{
 		return (atoms[atom].maxValence <= bondSum);
 	}
 		
-	/***************************************************************************************/
-
 	//---------------------------------------------------------------
-	class RowCompare {
-		boolean equal;
-		private int base;
-		private int[] row_i_sorted;
+	class SortCompare {
+		int maxRow = atoms.length - 1;
+		boolean equal;	
+		int[] iPerm;
 		
-		RowCompare (int base){
-			this.base = base;
+		SortCompare(){}
+		SortCompare (int max){
+			maxRow = max;
 		}
 		
-		boolean isSmallerThan (int i) {
+		boolean isSmallerThan (int i, int base) {
 			equal = false;
-			row_i_sorted = sortInMatrix(i);		
-			if (row_i_sorted == null) return false;
-			for (int yCol=base+1; yCol<atoms.length; yCol++){	
-				if (adjacency[base][yCol] < row_i_sorted[yCol]) return true;
-				if (adjacency[base][yCol] > row_i_sorted[yCol]) return false;
+			int []tPerm = iPerm.clone();
+			for (int xCol=base+1; xCol<atoms.length; xCol++){
+				int maxIndex=-1;
+				int maxVal = -1;
+				for (int yCol=atoms.length-1; yCol>=0; yCol--) {
+					if (maxVal <= adjacency[i][yCol] && tPerm[yCol] == -1 && atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
+						maxIndex = yCol;
+						maxVal = adjacency[i][yCol];
+					}
+				}
+//				if (maxIndex == -1) return false;	must not happen
+				if (adjacency[base][xCol] < maxVal) return true;
+				if (adjacency[base][xCol] > maxVal) return false;
+				tPerm[maxIndex] = xCol;	// in order to avoid using the same value twice
 			}
 			equal = true;
 			return false;
 		}
 		
-		/**
-		 * Sorts a given row (param i), considering all the rows and columns up to base (not including) to be fixed.
-		 * It means that two numbers in row i can be swapped if the corresponding columns do not change anything in
-		 * the rows above base.
-		 *  
-		 * @param i An integer showing the index of the row to be sorted.
-		 * @param base An integer showing the base row, up to which (but not including base itself) all rows and columns are fixed.
-		 * @return
-		 */
-		private int[] sortInMatrix(int i) {
-			int []iRow = new int[atoms.length];
-			int []tPerm = iPerm.clone();
-			for (int tillBase=0; tillBase<atoms.length; tillBase++)
-				if (iPerm[tillBase] != -1)
-					iRow[iPerm[tillBase]] = adjacency[i][tillBase];
-			for (int xCol=base+1; xCol<atoms.length; xCol++){
-				int max=-1;
-				for (int yCol=atoms.length-1; yCol>=0; yCol--) {
-					if (iRow[xCol] <= adjacency[i][yCol] && tPerm[yCol] == -1 && atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
-						iRow[xCol] = adjacency[i][yCol];
-						max = yCol;
-					}
-				}
-				if (max == -1) 
-					return null;
-				tPerm[max] = xCol;
-			}
-			return iRow;
+		@SuppressWarnings("unchecked")
+		boolean isMinimal(){
+			iPerm = new int[atoms.length];
+			Arrays.fill(iPerm, -1);
+			return sortCheckMin2(0);
 		}
-	}
-	
-	LinkedList<Integer>[] trans;
-	int[] iPerm;
-	@SuppressWarnings("unchecked")
-	boolean isMinimalSort(){
-		trans = new LinkedList[atoms.length];
-		iPerm = new int[atoms.length];
-		Arrays.fill(iPerm, -1);
-//		trans = new LinkedList[atoms.length];
-		return sortCheckMin2(0); // && checkPerms(0, mPerm);
-	}
-
-	private boolean sortCheckMin2(int base) {
-		if (base == atoms.length - 1) return true;
-		trans[base] = new LinkedList<>();
-		RowCompare baseRow = new RowCompare(base);
-		for (int row=0; row<atoms.length; row++){	// even check row == base
-			// check what happens if base <- row ?
-			if (iPerm[row] != -1 || !atoms[base].symbol.equals(atoms[row].symbol)) continue;
-//			if (row < base) {
-//				if (!trans[row].contains(base)) continue;
-//			} else if (row >= base) {
+		
+		private boolean sortCheckMin2(int base) {
+			if (base == maxRow) return true;
+			for (int row=0; row<=maxRow; row++){	// even check row == base
+				// check what happens if base <- row ?
+				if (iPerm[row] != -1 || !atoms[base].symbol.equals(atoms[row].symbol)) continue;
 				if (!areCompatible(row, base, base)) continue;
 				iPerm[row] = base;
-				if (baseRow.isSmallerThan(row)) 
-					return false;
+				if (isSmallerThan(row, base)) return false;
+				if (equal && !sortCheckMin2(base+1)) return false;
 				iPerm[row] = -1;
-				if (! baseRow.equal) continue; 
-//			}
-			trans[base].add(row);
+			}
+			return true;
 		}
-		for (int row:trans[base]){
-			iPerm[row] = base;
-			if (!sortCheckMin2(base+1)) return false;
-			iPerm[row] = -1;
+		
+		private boolean areCompatible(int src, int dst, int base) {
+			for (int above=0; above<atoms.length; above++) {
+				if (iPerm[above] != -1 && iPerm[above]!=base && adjacency[above][src] != adjacency[iPerm[above]][dst]) return false;
+			}
+			return true;
 		}
-		return true;
-	}
-
-	private boolean canBeMapped(int row, int base) {
-		int b = iPerm[base];
-		while (b != -1 && b != base) {
-			if (b == row) return true;
-			b = iPerm[b];
-		}
-		return false;
-	}
-
-	private boolean areCompatible(int src, int dst, int base) {
-		for (int above=0; above<atoms.length; above++) {
-			if (iPerm[above] != -1 && iPerm[above]!=base && adjacency[above][src] != adjacency[iPerm[above]][dst]) return false;
-		}
-		return true;
 	}
 
 	//----------------------------------------------------------------------------------------
-
-	@Override
-	public void run() {
-		if (isComplete() && isConnectedDFS()) {
-			//					if (!molSet.add(mol.canString)) System.err.println("Duplicate");
-			long currentCount = PMG.molCounter.incrementAndGet();
-			MolProcessor newMol = this;
-			if (semiCan && hashMap) {
-				// canonize 
-				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1);
-			}
-			if (semiCan && (hashMap ? !molSet.add(newMol.canString):!isMinimalSort())) {
-				duplicate.incrementAndGet();
-/*/			
-			int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-			int i;
-			for (i=0; i<atoms.length; i++) if (perm1[i] != i) break;
-			if (i<atoms.length){
-				 duplicate.incrementAndGet();
-*/
-			} else {
-				if(PMG.wFile){
-					writeMol(PMG.outFile, currentCount);
-					outputMatrix(PMG.matrixFile);
-				}
-			}
-		}	
-
-		// get all possible ways to add one bond to the molecule
-		ArrayList<MolProcessor> extMolList;
-		if (semiCan)
-			extMolList = addBondSemiCan();
-		else 
-			extMolList = addBond();
-
-		for (MolProcessor molecule : extMolList) {
-			if (!canAug && !semiCan && molSet.add(molecule.canString) == false) continue;
-			PMG.pendingTasks.incrementAndGet();
-			PMG.startedTasks.incrementAndGet();
-			if (PMG.taskQueue.size() > PMG.executorCount*2) {
-				molecule.run();	// continue sequentially
-			} else {
-				PMG.executor.execute(molecule);
-			}
-		}
-		PMG.pendingTasks.decrementAndGet();
-	}
-
 
 	private void outputMatrix(BufferedWriter out) {
 		StringWriter writer = new StringWriter();
@@ -424,6 +328,93 @@ public class MolProcessor implements Runnable{
 			System.err.println("Could not output to Matrix.");
 			e.printStackTrace();
 		}
+	}
+
+	@Override
+	public void run() {
+		if (semiCan) {
+			generateOrderly(startLeft, startRight);
+			PMG.availThreads.incrementAndGet();
+			PMG.pendingTasks.decrementAndGet();
+			return;
+		}
+		
+		if (isComplete() && isConnectedDFS()) {
+			long currentCount = PMG.molCounter.incrementAndGet();		
+			if(PMG.wFile){
+				writeMol(PMG.outFile, currentCount);
+				outputMatrix(PMG.matrixFile);
+			}
+		}	
+		// get all possible ways to add one bond to the molecule
+		ArrayList<MolProcessor> extMolList = addBond();
+
+		for (MolProcessor molecule : extMolList) {
+			if (!canAug && molSet.add(molecule.canString) == false) continue;
+			PMG.pendingTasks.incrementAndGet();
+			PMG.startedTasks.incrementAndGet();
+			if (PMG.taskQueue.size() > PMG.executorCount*2) {
+				molecule.run();	// continue sequentially
+			} else {
+				PMG.executor.execute(molecule);
+			}
+		}
+		PMG.pendingTasks.decrementAndGet();
+	}
+	
+	
+	/*
+	 * This function should be called first with left=0 and right=1 as parameters.
+	 */
+	void generateOrderly (int left, int right) {
+		if (left == atoms.length-1) return;
+		if (right == atoms.length || isFull(left)) {
+			submitIfAvailThread(left+1, left+2);
+			return;
+		}
+		else if (incBondSemiCan(left, right)) {
+			maxOpenings-=2;
+			if (new SortCompare(left).isMinimal()) {
+				checkMolecule();
+				if (maxOpenings>0) submitIfAvailThread(left, right);	// if there are still open places for new bonds
+			}
+			decBond(left, right);
+			maxOpenings+=2;
+		}
+		submitIfAvailThread(left, right+1);
+	}
+
+	private void submitIfAvailThread(int left, int right) {
+		int avail = PMG.availThreads.get();
+		while (avail>0) {
+			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
+				PMG.pendingTasks.incrementAndGet();
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, left, right));
+				return;
+			}
+			avail = PMG.availThreads.get();
+		}
+		generateOrderly(left, right);
+	}
+	
+	private void checkMolecule() {
+		if (isComplete() && isConnectedDFS()) {
+			long currentCount = PMG.molCounter.incrementAndGet();
+			MolProcessor newMol = this;
+			if (hashMap) {
+				// canonize 
+				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
+				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1);
+			}
+			if (hashMap ? !molSet.add(newMol.canString):!new SortCompare().isMinimal()) {
+				duplicate.incrementAndGet();
+			} else {
+				if(PMG.wFile){
+					writeMol(PMG.outFile, currentCount);
+					outputMatrix(PMG.matrixFile);
+				}
+			}
+		}	
 	}
 
 	private ArrayList<MolProcessor> addBondSemiCan() {
