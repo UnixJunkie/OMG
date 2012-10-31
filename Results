@@ -274,3 +274,72 @@ molecules:  68837
 duplicates: 0; non-duplicates: 68837
 Duration: 44022 milliseconds
 Started Tasks: 215876
+
+
+=========================
+=========================
+First positive Scalability results
+=========================
+Running for 15
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 32052 milliseconds
+Started Tasks: 1
+
+Running for 12
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 34033 milliseconds
+Started Tasks: 1
+
+Running for 8
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 44033 milliseconds
+Started Tasks: 1
+
+Running for 6
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 58042 milliseconds
+Started Tasks: 1
+
+Running for 4
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 82154 milliseconds
+Started Tasks: 1
+
+Running for 2
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 160051 milliseconds
+Started Tasks: 1
+
+Running for 1
+CDK-free C15H32
+Using semi-canonization and minimization.
+Parallel execution with 14 threads.
+molecules:  4367
+duplicates: 20; non-duplicates: 4347
+Duration: 319079 milliseconds
+Started Tasks: 1
+
