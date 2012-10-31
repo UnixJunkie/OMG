@@ -45,6 +45,7 @@ import org.omg.tools.*;
 public class PMG{
 	/**Output File containing the list of graph. */
 	static BufferedWriter outFile, matrixFile;
+	static AtomicInteger availThreads;
 	final static AtomicLong molCounter = new AtomicLong(0);
 	final static AtomicLong pendingTasks = new AtomicLong(0);
 	final static AtomicLong startedTasks = new AtomicLong(0);
@@ -95,6 +96,7 @@ public class PMG{
 			matrixFile = new BufferedWriter(new FileWriter(out+".txt"));
 		}
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
+		availThreads = new AtomicInteger(executorCount-1);
 
 		System.out.println("CDK-free "+formula);
 		if (MolProcessor.canAug)  System.out.println("Using canonical augmentation with bliss as canonizer.");
