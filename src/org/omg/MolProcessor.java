@@ -24,6 +24,8 @@ import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.ICDKObject;
 import org.openscience.cdk.io.MDLV2000Writer;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
+import org.openscience.cdk.tools.SaturationChecker;
+import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.AtomTypeManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
@@ -451,6 +453,7 @@ public class MolProcessor implements Runnable{
 		}	
 	}
 
+	final static SaturationChecker satCheck = new SaturationChecker();
 	private boolean acceptedByCDK() {
 //		acontainer.removeAllBonds();
 		try {
@@ -467,21 +470,22 @@ public class MolProcessor implements Runnable{
 			}
 			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
 			hAdder.addImplicitHydrogens(acprotonate);
-			if (PMG.wFile) {
-				StringWriter writer = new StringWriter();
-				MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-				mdlWriter.write(acprotonate);
-				writer.append("> <Id>\n"+(PMG.molCounter.get())+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
-				PMG.CDKFile.write(writer.toString());
-			}
+//			if (PMG.wFile) {
+//				StringWriter writer = new StringWriter();
+//				MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
+//				mdlWriter.write(acprotonate);
+//				writer.append("> <Id>\n"+(PMG.molCounter.get())+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
+//				PMG.CDKFile.write(writer.toString());
+//			}
+			return (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH));
 		} catch (CDKException e) {
 			return false;
 		} catch (CloneNotSupportedException e) {
 			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
+//		} catch (IOException e) {
+//			e.printStackTrace();
 		}
-		return true;		
+		return true;	// if things go wrong, we assume it is accepted! :P
 	}
 
 
