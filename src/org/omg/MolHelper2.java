@@ -29,7 +29,7 @@ import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.IChemSequence;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.io.MDLV2000Writer;
-import org.openscience.cdk.nonotify.NoNotificationChemObjectBuilder;
+//import org.openscience.cdk.nonotify.NoNotificationChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesGenerator;
 import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
@@ -407,31 +407,31 @@ public class MolHelper2 {
 		return addBond(false, true);
 	}
 
-	SmilesGenerator generator = new SmilesGenerator();
-	
-	SmilesParser parser = new SmilesParser(
-			  NoNotificationChemObjectBuilder.getInstance()
-			);
-	ArrayList<MolHelper2> addBondUsingSmiles() throws CloneNotSupportedException, CDKException{
-		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
-		if (maxOpenings<=acontainer.getBondCount()*2) return extMolList;	// the molecule is already saturated!
-		
-    	Set<String> visited = new HashSet<>();
-		
-		// Note that the representative of an atom never has a bigger ID
-		for (int left = 0; left < atomCount; left++){
-			for (int right = left+1; right < atomCount; right++){
-				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
-				if (!incBond(left, right, copyMol)) continue;	
-
-				String canSmiles = 	generator.createSMILES(copyMol);
-				if (visited.add(canSmiles)) 
-					extMolList.add(new MolHelper2(parser.parseSmiles(canSmiles), null, canSmiles, maxOpenings));  
-			}
-		}
-		return extMolList;
-	}
-	
+//	SmilesGenerator generator = new SmilesGenerator();
+//	
+//	SmilesParser parser = new SmilesParser(
+//			  NoNotificationChemObjectBuilder.getInstance()
+//			);
+//	ArrayList<MolHelper2> addBondUsingSmiles() throws CloneNotSupportedException, CDKException{
+//		ArrayList<MolHelper2> extMolList = new ArrayList<MolHelper2>();
+//		if (maxOpenings<=acontainer.getBondCount()*2) return extMolList;	// the molecule is already saturated!
+//		
+//    	Set<String> visited = new HashSet<>();
+//		
+//		// Note that the representative of an atom never has a bigger ID
+//		for (int left = 0; left < atomCount; left++){
+//			for (int right = left+1; right < atomCount; right++){
+//				IAtomContainer copyMol = (IAtomContainer) acontainer.clone();
+//				if (!incBond(left, right, copyMol)) continue;	
+//
+//				String canSmiles = 	generator.createSMILES(copyMol);
+//				if (visited.add(canSmiles)) 
+//					extMolList.add(new MolHelper2(parser.parseSmiles(canSmiles), null, canSmiles, maxOpenings));  
+//			}
+//		}
+//		return extMolList;
+//	}
+//	
 	
 	/**
 	 * 
