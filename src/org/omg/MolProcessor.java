@@ -32,9 +32,13 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
-	static final boolean semiCan = true;
-	static final boolean canAug = !semiCan;
-	static final boolean hashMap = false;	// otherwise, minimality check (with semiCan)
+	static final int SEM_CAN = 0;
+	static final int MIN_CAN = 1;
+	static final int CAN_AUG = 2;
+	static final int BRT_FRC = 3;
+	final int method;
+	final boolean hashMap;	// otherwise, minimality check (with semiCan)
+	final boolean cdkCheck;
 	
 	public final Atom[] atoms;
 	final int nH;
@@ -49,7 +53,11 @@ public class MolProcessor implements Runnable{
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 	
 	
-	public MolProcessor(final ArrayList<String> atomSymbols, String formula){
+	public MolProcessor(final ArrayList<String> atomSymbols, String formula,
+			final int method, final boolean hm, final boolean cdk){
+		this.method = method;
+		this.hashMap = hm;
+		this.cdkCheck = cdk;
 		int nH=0;
 		int maxOpenings=0;
 		int atomCount=0;
@@ -104,7 +112,11 @@ public class MolProcessor implements Runnable{
 	 */
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
 			            final int[][] adjacency, final Graph gr, 
-			            final int stL, final int stR, final IAtomContainer acontainer) {
+			            final int stL, final int stR, final IAtomContainer acontainer,
+			            final int method, final boolean hm, final boolean cdk) {
+		this.method = method;
+		this.hashMap = hm;
+		this.cdkCheck = cdk;
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -121,7 +133,12 @@ public class MolProcessor implements Runnable{
 	}
 		 	
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, final int[] canPerm, final IAtomContainer acontainer) {
+			            final int[][] adjacency, final Graph gr, final int[] canPerm,
+			            final IAtomContainer acontainer, 
+			            final int method, final boolean hm, final boolean cdk) {
+		this.method = method;
+		this.hashMap = hm;
+		this.cdkCheck = cdk;
 		this.atoms = atoms;
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
@@ -363,7 +380,9 @@ public class MolProcessor implements Runnable{
 
 	@Override
 	public void run() {
-		if (semiCan) {
+		switch(method){
+		case SEM_CAN:
+		case MIN_CAN:
 			generateOrderly(startLeft, startRight);
 			PMG.availThreads.incrementAndGet();
 			PMG.pendingTasks.decrementAndGet();
@@ -372,16 +391,13 @@ public class MolProcessor implements Runnable{
 		
 		if (isComplete() && isConnectedDFS()) {
 			long currentCount = PMG.molCounter.incrementAndGet();		
-			if(PMG.wFile){
-				writeMol(PMG.outFile, currentCount);
-				outputMatrix(PMG.matrixFile);
-			}
+			writeToFile(currentCount);
 		}	
 		// get all possible ways to add one bond to the molecule
 		ArrayList<MolProcessor> extMolList = addBond();
 
 		for (MolProcessor molecule : extMolList) {
-			if (!canAug && molSet.add(molecule.canString) == false) continue;
+			if (method == BRT_FRC && molSet.add(molecule.canString) == false) continue;
 			PMG.pendingTasks.incrementAndGet();
 			PMG.startedTasks.incrementAndGet();
 			if (PMG.taskQueue.size() > PMG.executorCount*2) {
@@ -420,7 +436,7 @@ public class MolProcessor implements Runnable{
 		while (avail>0) {
 			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
 				PMG.pendingTasks.incrementAndGet();
-				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, left, right, acontainer));
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, left, right, acontainer, method, hashMap, cdkCheck));
 				return;
 			}
 			avail = PMG.availThreads.get();
@@ -435,27 +451,30 @@ public class MolProcessor implements Runnable{
 			if (hashMap) {
 				// canonize 
 				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, acontainer);
+				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, acontainer, method, hashMap, cdkCheck);
 			}
 			if (hashMap ? !molSet.add(newMol.canString):!new SortCompare().isMinimal()) {
 				duplicate.incrementAndGet();
 			} else {
-				BufferedWriter theOutFile = PMG.outFile;
-				if (!acceptedByCDK()){
-					PMG.rejectedByCDK.incrementAndGet();
-					theOutFile = PMG.rejectedFile;
-				}
-				if(PMG.wFile){
-					writeMol(theOutFile, currentCount);
-					outputMatrix(PMG.matrixFile);
-				}
+				writeToFile(currentCount);
 			}
 		}	
 	}
 
+	private void writeToFile(long currentCount) {
+		BufferedWriter theOutFile = PMG.outFile;
+		if (!acceptedByCDK()){
+			PMG.rejectedByCDK.incrementAndGet();
+			theOutFile = PMG.rejectedFile;
+		}
+		if(PMG.wFile){
+			writeMol(theOutFile, currentCount);
+//					outputMatrix(PMG.matrixFile);
+		}
+	}
+
 	final static SaturationChecker satCheck = new SaturationChecker();
 	private boolean acceptedByCDK() {
-//		acontainer.removeAllBonds();
 		try {
 			IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
 			for (int r=0; r<atoms.length; r++)
@@ -470,20 +489,11 @@ public class MolProcessor implements Runnable{
 			}
 			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
 			hAdder.addImplicitHydrogens(acprotonate);
-//			if (PMG.wFile) {
-//				StringWriter writer = new StringWriter();
-//				MDLV2000Writer mdlWriter = new MDLV2000Writer(writer);
-//				mdlWriter.write(acprotonate);
-//				writer.append("> <Id>\n"+(PMG.molCounter.get())+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
-//				PMG.CDKFile.write(writer.toString());
-//			}
 			return (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH));
 		} catch (CDKException e) {
 			return false;
 		} catch (CloneNotSupportedException e) {
 			e.printStackTrace();
-//		} catch (IOException e) {
-//			e.printStackTrace();
 		}
 		return true;	// if things go wrong, we assume it is accepted! :P
 	}
@@ -508,7 +518,7 @@ public class MolProcessor implements Runnable{
 			for (int right = left+1; right < atoms.length; right++){
 				if (left == startLeft && right<startRight) continue;
 				if (incBondSemiCan(left, right)) {	
-					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right, acontainer)); 
+					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right, acontainer, method, hashMap, cdkCheck)); 
 					decBond(left,right);
 				}
 			}
@@ -535,7 +545,7 @@ public class MolProcessor implements Runnable{
 		}
 		if (startLeft == atoms.length-1) return extMolList;
 		do {
-			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight, acontainer));
+			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight, acontainer, method, hashMap, cdkCheck));
 			order += 2;
 		}while(incBondSemiCan(startLeft, startRight));
 		
@@ -557,10 +567,10 @@ public class MolProcessor implements Runnable{
 				
 					if (!incBond(left, right)) continue;	
 					// canonize 
-					int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1, acontainer);
+					int[] perm1 = graph.canonize(this, false);	// ask for the automorphisms to be reported back
+					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1, acontainer, method, hashMap, cdkCheck);
 					if (visited.add(newMol.canString)) {	
-						if (!canAug || canString.equals("") || canString.equals(newMol.canDel())){ 
+						if (method == BRT_FRC || canString.equals("") || canString.equals(newMol.canDel())){ 
 							extMolList.add(newMol); 
 						}
 					}	
@@ -583,7 +593,7 @@ public class MolProcessor implements Runnable{
 		}
 		decBond(left, right);
 		int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1, acontainer);
+		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1, acontainer, method, hashMap, cdkCheck);
 		incBond(left, right);
 		return tempMol.canString;
 	}

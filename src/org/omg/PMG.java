@@ -56,11 +56,14 @@ public class PMG{
 	static int executorCount;
 	static boolean wFile;
 	static String formula = null;
+	static int method = MolProcessor.MIN_CAN;
+	static boolean hashMap = false;
+	static boolean cdk = false;
 		
-	private static void startup (String formula) {
+	private static void startup () {
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
 		if (atomSymbols == null) System.exit(1);
-		MolProcessor mp = new MolProcessor(atomSymbols, formula);
+		MolProcessor mp = new MolProcessor(atomSymbols, formula, method, hashMap, cdk);
 		startedTasks.getAndIncrement();
 		pendingTasks.getAndIncrement();
 		executor.execute(mp);
@@ -70,13 +73,23 @@ public class PMG{
 		wFile = false;
 		String out = "default_out.sdf";
 		executorCount = Runtime.getRuntime().availableProcessors();
+		if (args.length == 0) {
+			usage();
+		}
+		formula = args[0];
 		for(int i = 0; i < args.length; i++){
 			if(args[i].equals("-p")){
 				executorCount = Integer.parseInt(args[++i]);
 				if (executorCount < 1) executorCount = 1;
 			}
-			else if(args[i].equals("-mf")){
-				formula = args[++i];
+			else if(args[i].equals("-m")){
+				method = interpretMethod(args[++i]);
+			}
+			else if(args[i].equals("-hashmap")){
+				hashMap = true;
+			}
+			else if(args[i].equals("-cdk")){
+				cdk = true;
 			}
 			else if(args[i].equals("-o")){
 				out = args[++i];
@@ -87,11 +100,7 @@ public class PMG{
 			}
 		}
 		
-		if (formula == null) {
-			help();
-			System.exit(0);
-		}
-		
+
 		if (wFile) {
 			outFile = new BufferedWriter(new FileWriter(out));
 			rejectedFile =  new BufferedWriter(new FileWriter("Rejected_"+out));
@@ -102,30 +111,48 @@ public class PMG{
 		availThreads = new AtomicInteger(executorCount-1);
 
 		System.out.println("CDK-free "+formula);
-		if (MolProcessor.canAug)  System.out.println("Using canonical augmentation with bliss as canonizer.");
-		if (MolProcessor.semiCan) System.out.println("Using semi-canonization and "+(MolProcessor.hashMap?"hash map.":"minimization."));
+		switch(method){
+		case MolProcessor.BRT_FRC: System.out.println("Using brute-force."); break;
+		case MolProcessor.CAN_AUG: System.out.println("Using canonical augmentation with bliss as canonizer."); break;
+		case MolProcessor.MIN_CAN: System.out.println("Using only minimization."); break;
+		case MolProcessor.SEM_CAN: System.out.println("Using semi-canonization and "+(hashMap?"hash map.":"minimization.")); break;
+		}
 		if (executorCount > 1)    System.out.println("Parallel execution with "+executorCount+" threads.");
 		long before = System.currentTimeMillis();
-		startup(formula); 	
+		startup(); 	
 		wait2Finish();	// wait for all tasks to finish, close the output file and return the final count
 		executor.shutdown();	
 		long after = System.currentTimeMillis();		
 
 		// Report the number of generated molecules
-		System.out.println("molecules:  " + molCounter.get());
-		System.out.println("duplicates: "+MolProcessor.duplicate.get()+"; non-duplicates: "+(molCounter.get()-MolProcessor.duplicate.get()));
-		System.out.println("Rejected by CDK: "+rejectedByCDK.get()+"; Final count: "+(molCounter.get()-MolProcessor.duplicate.get()-rejectedByCDK.get()));
+		System.out.println("Unique molecular graphs:  " + (molCounter.get()-MolProcessor.duplicate.get()));
+		if (method == MolProcessor.SEM_CAN) System.out.println("Duplicates removed in the end: "+MolProcessor.duplicate.get());
+		if (cdk) System.out.println("Final molecule count: "+(molCounter.get()-MolProcessor.duplicate.get()-rejectedByCDK.get())+" after rejecting "+rejectedByCDK.get()+" by CDK.");
 		System.out.println("Duration: " + (after - before) + " milliseconds");
 		System.out.println("Started Tasks: "+startedTasks.get());
-		System.in.read();
 	}
 
-	private static void help() {
-		System.out.println("You can use the following options.");
-		System.out.println("Specifying a formula is obligatory.");
-		System.out.println("\t-mf \tA formula - the elemental composition");
-		System.out.println("\t-p  \tThe paralellism degree (number of parallel threads)");
+	private static int interpretMethod(String methodStr) {
+		int m=0;
+		try{
+			m = Integer.parseInt(methodStr);
+		} catch (NumberFormatException nfe) {
+			System.err.println("Invalid method.");
+			usage();
+		}
+		return m;
+	}
+
+	private static void usage() {
+		System.out.println("Usage: PMG <formula> [options]");
+		System.out.println("Providing a formula for the elemental compositoin is obligatory, e.g., C4H7NO3.");
+		System.out.println("You can further specify the following options.");
+		System.out.println("\t-m \tThe method to use: 0=semi-canonicity; 1=minimization; 2=canonical-augmentation; 3=brute-force");
+		System.out.println("\t-p  \tThe number of parallel threads to use; by default will use all available cores");
 		System.out.println("\t-o  \tThe name of the output file");
+		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
+		System.out.println("\t-cdk \tEnables using CDK for removing unacceptable molecular structures in the end.");
+		System.exit(0);
 	}
 
 	private static void wait2Finish() {
