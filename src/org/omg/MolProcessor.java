@@ -41,17 +41,52 @@ public class MolProcessor implements Runnable{
 	final boolean cdkCheck;
 	
 	public final Atom[] atoms;
+//	int [] perm = identity();
 	final int nH;
-	int maxOpenings;
-	final String canString;
 	final Graph graph;
 	final int[][] adjacency;
 	final static AtomicLong duplicate = new AtomicLong(0);
-	final int startLeft, startRight;
 	private final IAtomContainer acontainer;
+	
+	int maxOpenings;
+	int startLeft;
+	int startRight;
+	String canString="";
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 	
+
+	/**
+	 * Used with the semi-canonization method, which does not keep 
+	 * a canonical form, but a semi-canonical form of the molecule.
+	 * 
+	 * @param atoms
+	 * @param nH
+	 * @param maxOpenings
+	 * @param adjacency
+	 * @param gr
+	 */
+	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
+			            final int[][] adjacency, final Graph gr, String canStr,
+			            final int stL, final int stR, final IAtomContainer acontainer,
+			            final int method, final boolean hm, final boolean cdk) {
+		this.method = method;
+		this.hashMap = hm;
+		this.cdkCheck = cdk;
+		this.canString = canStr;
+		this.atoms = atoms;
+		this.nH = nH;
+		this.maxOpenings = maxOpenings;
+		graph = gr; 
+		this.adjacency = new int [atoms.length][atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++){
+				this.adjacency[i][j] = adjacency[i][j];
+			}
+		this.startLeft = stL;
+		this.startRight = stR;
+		this.acontainer = acontainer;
+	}
 	
 	public MolProcessor(final ArrayList<String> atomSymbols, String formula,
 			final int method, final boolean hm, final boolean cdk){
@@ -78,7 +113,6 @@ public class MolProcessor implements Runnable{
 		adjacency = new int [atomCount][atomCount];
 		graph = new Graph(atomCount);
 		this.maxOpenings = maxOpenings;
-		canString = "";
 		startLeft=0;
 		startRight=1;
 		IAtomContainer lcontainer;
@@ -100,61 +134,12 @@ public class MolProcessor implements Runnable{
 		return true;
 	}
 
-	/**
-	 * Used with the semi-canonization method, which does not keep 
-	 * a canonical form, but a semi-canonical form of the molecule.
-	 * 
-	 * @param atoms
-	 * @param nH
-	 * @param maxOpenings
-	 * @param adjacency
-	 * @param gr
-	 */
-	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, 
-			            final int stL, final int stR, final IAtomContainer acontainer,
-			            final int method, final boolean hm, final boolean cdk) {
-		this.method = method;
-		this.hashMap = hm;
-		this.cdkCheck = cdk;
-		this.atoms = atoms;
-		this.nH = nH;
-		this.maxOpenings = maxOpenings;
-		graph = gr; 
-		this.adjacency = new int [atoms.length][atoms.length];
+	private String molString(int[] canPerm){
+		int[][] adjacency = new int [atoms.length][atoms.length];
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<atoms.length; j++){
-				this.adjacency[i][j] = adjacency[i][j];
+				adjacency[canPerm[i]][canPerm[j]] = this.adjacency[i][j];
 			}
-		this.canString = "";
-		this.startLeft = stL;
-		this.startRight = stR;
-		this.acontainer = acontainer;
-	}
-		 	
-	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, final int[] canPerm,
-			            final IAtomContainer acontainer, 
-			            final int method, final boolean hm, final boolean cdk) {
-		this.method = method;
-		this.hashMap = hm;
-		this.cdkCheck = cdk;
-		this.atoms = atoms;
-		this.nH = nH;
-		this.maxOpenings = maxOpenings;
-		graph = gr; 
-		this.adjacency = new int [atoms.length][atoms.length];
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<atoms.length; j++){
-				this.adjacency[canPerm[i]][canPerm[j]] = adjacency[i][j];
-			}
-		this.canString = molString();
-		startLeft=0;
-		startRight=1;
-		this.acontainer = acontainer;
-	}
-	
-	private String molString(){
 		StringBuilder buf = new StringBuilder();
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<i; j++){
@@ -216,8 +201,9 @@ public class MolProcessor implements Runnable{
 	 * The bad side is that it has less features and cannot handle all complicated chemical structures. 
 	 * @param outFile
 	 * @param mol_counter
+	 * @param canString 
 	 */
-	public synchronized void writeMol(final BufferedWriter outFile, final long mol_counter) {
+	public synchronized void writeMol(final BufferedWriter outFile, final long mol_counter, String canString) {
 		StringWriter writer = new StringWriter();
 		int bondsCount = 0;
 		
@@ -380,95 +366,90 @@ public class MolProcessor implements Runnable{
 
 	@Override
 	public void run() {
+		dispatch();
+		PMG.availThreads.incrementAndGet();
+		PMG.pendingTasks.decrementAndGet();
+	}
+
+	private void dispatch() {
 		switch(method){
 		case SEM_CAN:
 		case MIN_CAN:
-			generateOrderly(startLeft, startRight);
-			PMG.availThreads.incrementAndGet();
-			PMG.pendingTasks.decrementAndGet();
-			return;
+			generateOrderly();
+			break;
+		case CAN_AUG:
+//			expandForCanonicalAugmentation();
+			augment();
+			break;
 		}
-		
-		if (isComplete() && isConnectedDFS()) {
-			long currentCount = PMG.molCounter.incrementAndGet();		
-			writeToFile(currentCount);
-		}	
-		// get all possible ways to add one bond to the molecule
-		ArrayList<MolProcessor> extMolList = addBond();
-
-		for (MolProcessor molecule : extMolList) {
-			if (method == BRT_FRC && molSet.add(molecule.canString) == false) continue;
-			PMG.pendingTasks.incrementAndGet();
-			PMG.startedTasks.incrementAndGet();
-			if (PMG.taskQueue.size() > PMG.executorCount*2) {
-				molecule.run();	// continue sequentially
-			} else {
-				PMG.executor.execute(molecule);
-			}
-		}
-		PMG.pendingTasks.decrementAndGet();
 	}
-	
-	
+
 	/*
 	 * This function should be called first with left=0 and right=1 as parameters.
 	 */
-	void generateOrderly (int left, int right) {
-		if (left == atoms.length-1) return;
-		if (right == atoms.length || isFull(left)) {
-			submitIfAvailThread(left+1, left+2);
+	void generateOrderly () {
+		if (startLeft == atoms.length-1) return;
+		if (startRight == atoms.length || isFull(startLeft)) {
+			int right = startRight;
+			startLeft+=1;
+			startRight=startLeft+1;
+			submitNewTask();
+			startLeft-=1;
+			startRight=right;
 			return;
 		}
-		else if (incBondSemiCan(left, right)) {
+		else if (incBondSemiCan(startLeft, startRight)) {
 			maxOpenings-=2;
-			if (new SortCompare(left).isMinimal()) {
+			if (new SortCompare(startLeft).isMinimal()) {
 				checkMolecule();
-				if (maxOpenings>0) submitIfAvailThread(left, right);	// if there are still open places for new bonds
+				if (maxOpenings>0) submitNewTask();	// if there are still open places for new bonds
 			}
-			decBond(left, right);
+			decBond(startLeft, startRight);
 			maxOpenings+=2;
 		}
-		submitIfAvailThread(left, right+1);
+		startRight++;
+		submitNewTask();
+		startRight--;
 	}
 
-	private void submitIfAvailThread(int left, int right) {
+	private void submitNewTask() {
 		int avail = PMG.availThreads.get();
 		while (avail>0) {
 			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
 				PMG.pendingTasks.incrementAndGet();
-				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, left, right, acontainer, method, hashMap, cdkCheck));
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, canString, startLeft, startRight, acontainer, method, hashMap, cdkCheck));
 				return;
 			}
 			avail = PMG.availThreads.get();
 		}
-		generateOrderly(left, right);
+		dispatch();
 	}
 	
 	private void checkMolecule() {
 		if (isComplete() && isConnectedDFS()) {
 			long currentCount = PMG.molCounter.incrementAndGet();
-			MolProcessor newMol = this;
+			String canString = "";
 			if (hashMap) {
 				// canonize 
 				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-				newMol = new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, perm1, acontainer, method, hashMap, cdkCheck);
+				canString = molString(perm1);
 			}
-			if (hashMap ? !molSet.add(newMol.canString):!new SortCompare().isMinimal()) {
+			if (hashMap ? !molSet.add(canString):!new SortCompare().isMinimal()) {
 				duplicate.incrementAndGet();
 			} else {
-				writeToFile(currentCount);
+				writeToFile(currentCount, canString);
 			}
 		}	
 	}
 
-	private void writeToFile(long currentCount) {
+	private void writeToFile(long currentCount, String canString) {
 		BufferedWriter theOutFile = PMG.outFile;
 		if (!acceptedByCDK()){
 			PMG.rejectedByCDK.incrementAndGet();
 			theOutFile = PMG.rejectedFile;
 		}
 		if(PMG.wFile){
-			writeMol(theOutFile, currentCount);
+			writeMol(theOutFile, currentCount, canString);
 //					outputMatrix(PMG.matrixFile);
 		}
 	}
@@ -509,92 +490,61 @@ public class MolProcessor implements Runnable{
 		return null;
 	}
 
-	private ArrayList<MolProcessor> addBondSemiCan() {
-		ArrayList<MolProcessor> extMolList = new ArrayList<>();
-		if (maxOpenings<=0) 
-			return extMolList;	// the molecule is already saturated!
-
-		for (int left = startLeft; left < atoms.length; left++){
-			for (int right = left+1; right < atoms.length; right++){
-				if (left == startLeft && right<startRight) continue;
-				if (incBondSemiCan(left, right)) {	
-					extMolList.add(new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, left, right, acontainer, method, hashMap, cdkCheck)); 
-					decBond(left,right);
-				}
-			}
-		}
-		return extMolList;	
-	}
-
-	/**
-	 * Add one bond, with different orders, between left and right, and return the list.
-	 * It then moves to the next place in the adjacency matrix for the next step.
-	 * @return
-	 */
-	private ArrayList<MolProcessor> addBondSemiCan2() {
-		ArrayList<MolProcessor> extMolList = new ArrayList<>();
-		if (maxOpenings<=0) 
-			return extMolList;	// the molecule is already saturated!
-
-		int order = 0;
-		int newLeft = startLeft;
-		int newRight = startRight + 1;
-		if (newRight == atoms.length) {
-			newLeft ++;
-			newRight = newLeft+1;
-		}
-		if (startLeft == atoms.length-1) return extMolList;
-		do {
-			extMolList.add(new MolProcessor(atoms, nH, maxOpenings-order, adjacency, graph, newLeft, newRight, acontainer, method, hashMap, cdkCheck));
-			order += 2;
-		}while(incBondSemiCan(startLeft, startRight));
-		
-		return extMolList;	
-	}
-		
-	private ArrayList<MolProcessor> addBond() {
-		ArrayList<MolProcessor> extMolList = new ArrayList<>();
-		if (maxOpenings<=0) return extMolList;	// the molecule is already saturated!
-		
+	private void augment(){
+		String pString = canString;
+		if (maxOpenings<=0) return;
     	Set<String> visited = new HashSet<>();
-
-		// Note that the representative of an atom never has a bigger ID
 		for (int left = 0; left < atoms.length; left++){
-//			if (left>0 && rep[left] <= rep[left-1]) continue;	// make sure each orbit is considered only once
 			for (int right = left+1; right < atoms.length; right++){
-//				if (right>left+1 && rep[right] <= rep[right-1]) continue;	// make sure each orbit is considered only once
-				// For the first iteration (in inner loop), we may consider the same orbit as "left"
-				
 					if (!incBond(left, right)) continue;	
 					// canonize 
-					int[] perm1 = graph.canonize(this, false);	// ask for the automorphisms to be reported back
-					MolProcessor newMol = new MolProcessor(atoms, nH, maxOpenings-2, adjacency, graph, perm1, acontainer, method, hashMap, cdkCheck);
-					if (visited.add(newMol.canString)) {	
-						if (method == BRT_FRC || canString.equals("") || canString.equals(newMol.canDel())){ 
-							extMolList.add(newMol); 
+					int[] perm1 = graph.canonize(this, false);
+					String childString = molString(perm1);
+					if (visited.add(childString)) {	
+						if (method == BRT_FRC || pString.equals("") || pString.equals(degrade(perm1))){ 
+							maxOpenings -= 2;
+							if (isComplete() && isConnectedDFS()) {
+								writeToFile(PMG.molCounter.incrementAndGet(), childString);
+							}	
+							canString = childString;
+							submitNewTask();
+							maxOpenings += 2;
 						}
 					}	
 					decBond(left,right);
 			}
 		}
-		return extMolList;
+
 	}
-	
-	private String canDel() {
+
+	private String degrade(int[] canPerm) {
+		// Find the canonical graph
+		int[][] adjacency = new int [atoms.length][atoms.length];
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++){
+				adjacency[canPerm[i]][canPerm[j]] = this.adjacency[i][j];
+			}
+		// In canonical graph, find the last edge
 		int left=0,right=0;
-		for (int i = 0; i < atoms.length; i++){
+		outer:for (int i = 0; i < atoms.length; i++){
 			for (int j = i+1; j < atoms.length; j++){
 				if (adjacency[i][j] != 0) {
 					left = i;
 					right = j;
-					break;
+					//break outer;
 				}
 			}
 		}
+		// map the last edge to the original graph
+		for (int i=0; i<atoms.length; i++) if (canPerm[i] == left) {left = i; break;}
+		for (int i=0; i<atoms.length; i++) if (canPerm[i] == right){right= i; break;}
+		// remove the last edge
 		decBond(left, right);
-		int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
-		MolProcessor tempMol = new MolProcessor(atoms, nH, maxOpenings+2, adjacency, graph, perm1, acontainer, method, hashMap, cdkCheck);
+		// canonize and report the canonical string
+		int[] perm1 = graph.canonize(this, false);
+		String decString = molString(perm1);
 		incBond(left, right);
-		return tempMol.canString;
+		return decString;
 	}
+
 }
