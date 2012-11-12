@@ -9,7 +9,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.RecursiveTask;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.omg.tools.Atom;
@@ -31,7 +33,7 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 import fi.tkk.ics.jbliss.Graph;
 
-public class MolProcessor implements Runnable{
+public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	static final int SEM_CAN = 0;
 	static final int MIN_CAN = 1;
 	static final int CAN_AUG = 2;
@@ -47,7 +49,8 @@ public class MolProcessor implements Runnable{
 	final int[][] adjacency;
 	final static AtomicLong duplicate = new AtomicLong(0);
 	private final IAtomContainer acontainer;
-	
+
+	int []blocks;
 	int maxOpenings;
 	int startLeft;
 	int startRight;
@@ -55,6 +58,17 @@ public class MolProcessor implements Runnable{
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
 	
+
+	final boolean compatible[][][];
+
+	void init() {
+		for (int i=0; i<atoms.length; i++){
+			compatible[i][i][0] = true;
+			for (int j=i+1; j<atoms.length; j++){
+				compatible[i][j][0] = compatible[j][i][0] = (atoms[i].symbol.equals(atoms[j].symbol)); // && adjacency[i][j] == adjacency[j][i];
+			}
+		}
+	}
 
 	/**
 	 * Used with the semi-canonization method, which does not keep 
@@ -67,14 +81,17 @@ public class MolProcessor implements Runnable{
 	 * @param gr
 	 */
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
-			            final int[][] adjacency, final Graph gr, String canStr,
+			            final int[][] adjacency, final Graph gr, String canStr, final int[] blocks,
 			            final int stL, final int stR, final IAtomContainer acontainer,
 			            final int method, final boolean hm, final boolean cdk) {
 		this.method = method;
 		this.hashMap = hm;
 		this.cdkCheck = cdk;
 		this.canString = canStr;
+		this.blocks = blocks.clone();
 		this.atoms = atoms;
+		this.compatible = new boolean[atoms.length][atoms.length][atoms.length];
+		init();
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
 		graph = gr; 
@@ -115,6 +132,15 @@ public class MolProcessor implements Runnable{
 		this.maxOpenings = maxOpenings;
 		startLeft=0;
 		startRight=1;
+		
+		this.compatible = new boolean[atoms.length][atoms.length][atoms.length];
+		init();
+		blocks = new int [atoms.length];
+		for (int i=2; i<atoms.length; i++) {
+			if (atoms[i].symbol.equals(atoms[i-1].symbol))
+				blocks[i] = 1;	// continuing the block
+		}
+		
 		IAtomContainer lcontainer;
 		do {	// this stupid loop is here only because CDK is not stable with respect to the order of the atoms it returns
 			lcontainer = MolecularFormulaManipulator.getAtomContainer(
@@ -124,10 +150,19 @@ public class MolProcessor implements Runnable{
 	}
 
 	private boolean inRightOrder(ArrayList<String> atomSymbols, IAtomContainer lcontainer) {
+		List<IAtom> listcont = new ArrayList<IAtom>();
+		for(IAtom atom: lcontainer.atoms()){
+			if(atom.getSymbol().equals("H")){
+				listcont.add(atom);
+			}
+		}
+		for(IAtom atom: listcont){
+			lcontainer.removeAtom(atom);
+		}
+
 		int atom = 0;
 		for (String symbol:atomSymbols){
 			if (symbol.equals("H")) continue;	// skip hydrogens
-			while (lcontainer.getAtom(atom).getSymbol().equals("H")) { lcontainer.removeAtom(atom); } // remove hydrogens
 			String symbol2 = lcontainer.getAtom(atom++).getSymbol();
 			if (!symbol2.equals(symbol)) return false;	// compare other atoms
 		}
@@ -256,6 +291,10 @@ public class MolProcessor implements Runnable{
 		return incBond(left, right);
 	}
 	
+	private boolean incBondWithBlocks(final int left, final int right){
+		return ((blocks[right]==0 || adjacency[left][right]<adjacency[left][right-1]) && incBond(left, right)) ;
+	}
+	
 	private boolean incBond(final int left, final int right) {
 		if (isFull(left))  return false;
 		if (isFull(right)) return false;
@@ -282,7 +321,7 @@ public class MolProcessor implements Runnable{
 			bondSum += adjacency[atom][i];
 		return (atoms[atom].maxValence <= bondSum);
 	}
-		
+	
 	//---------------------------------------------------------------
 	class SortCompare {
 		int maxRow = atoms.length - 1;
@@ -294,16 +333,18 @@ public class MolProcessor implements Runnable{
 			maxRow = max;
 		}
 		
-		boolean isSmallerThan (int i, int base) {
+		boolean isSmallerThan (int currentRow, int base) {
 			equal = false;
 			int []tPerm = iPerm.clone();
 			for (int xCol=base+1; xCol<atoms.length; xCol++){
 				int maxIndex=-1;
 				int maxVal = -1;
 				for (int yCol=atoms.length-1; yCol>=0; yCol--) {
-					if (maxVal <= adjacency[i][yCol] && tPerm[yCol] == -1 && atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
+					if (maxVal <= adjacency[currentRow][yCol] && tPerm[yCol] == -1 && 
+//							compatible[yCol][xCol][base]) { 
+							atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
 						maxIndex = yCol;
-						maxVal = adjacency[i][yCol];
+						maxVal = adjacency[currentRow][yCol];
 					}
 				}
 //				if (maxIndex == -1) return false;	must not happen
@@ -326,14 +367,23 @@ public class MolProcessor implements Runnable{
 			if (base == maxRow) return true;
 			for (int row=0; row<=maxRow; row++){	// even check row == base
 				// check what happens if base <- row ?
+//				if (iPerm[row] != -1 || !compatible[row][base][base]) continue;
 				if (iPerm[row] != -1 || !atoms[base].symbol.equals(atoms[row].symbol)) continue;
 				if (!areCompatible(row, base, base)) continue;
 				iPerm[row] = base;
+//				update(row, base);
 				if (isSmallerThan(row, base)) return false;
 				if (equal && !sortCheckMin2(base+1)) return false;
 				iPerm[row] = -1;
 			}
 			return true;
+		}
+		
+		public void update(int row, int base) {
+			for (int src=0; src<atoms.length; src++)
+				for (int dst=0; dst<atoms.length; dst++)
+					compatible[src][dst][base+1] = compatible[src][dst][base] && adjacency[row][src] == adjacency[base][dst];
+//					compatible[src][dst][base+1] = areCompatible(src, dst, base+1);
 		}
 		
 		private boolean areCompatible(int src, int dst, int base) {
@@ -378,27 +428,43 @@ public class MolProcessor implements Runnable{
 			generateOrderly();
 			break;
 		case CAN_AUG:
-//			expandForCanonicalAugmentation();
 			augment();
 			break;
 		}
 	}
 
+	private void submitNewTask() {
+		int avail = PMG.availThreads.get();
+		while (avail>0) {
+			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
+				PMG.pendingTasks.incrementAndGet();
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, canString, blocks, startLeft, startRight, acontainer, method, hashMap, cdkCheck));
+				return;
+			}
+			avail = PMG.availThreads.get();
+		}
+		dispatch();
+	}
+	
 	/*
 	 * This function should be called first with left=0 and right=1 as parameters.
 	 */
 	void generateOrderly () {
-		if (startLeft == atoms.length-1) return;
 		if (startRight == atoms.length || isFull(startLeft)) {
+			if (startLeft == atoms.length-2) return;
 			int right = startRight;
+			int [] oldBlocks = new int [blocks.length];
+			System.arraycopy(blocks, 0, oldBlocks, 0, blocks.length);
+			updateBlocks(startLeft);
 			startLeft+=1;
 			startRight=startLeft+1;
 			submitNewTask();
+			blocks = oldBlocks;
 			startLeft-=1;
 			startRight=right;
 			return;
 		}
-		else if (incBondSemiCan(startLeft, startRight)) {
+		else if (incBondWithBlocks(startLeft, startRight)) {
 			maxOpenings-=2;
 			if (new SortCompare(startLeft).isMinimal()) {
 				checkMolecule();
@@ -412,19 +478,14 @@ public class MolProcessor implements Runnable{
 		startRight--;
 	}
 
-	private void submitNewTask() {
-		int avail = PMG.availThreads.get();
-		while (avail>0) {
-			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
-				PMG.pendingTasks.incrementAndGet();
-				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, canString, startLeft, startRight, acontainer, method, hashMap, cdkCheck));
-				return;
-			}
-			avail = PMG.availThreads.get();
-		}
-		dispatch();
-	}
 	
+	private void updateBlocks(int row) {
+		blocks[row+2] = 0;	// new block
+		for (int i=row+3; i<atoms.length; i++)
+			if (adjacency[row][i] != adjacency[row][i-1])
+				blocks[i] = 0;	// new block
+	}
+
 	private void checkMolecule() {
 		if (isComplete() && isConnectedDFS()) {
 			long currentCount = PMG.molCounter.incrementAndGet();
@@ -454,6 +515,8 @@ public class MolProcessor implements Runnable{
 		}
 	}
 
+//	static int notSat=0;
+//	static int notH=0;
 	final static SaturationChecker satCheck = new SaturationChecker();
 	private boolean acceptedByCDK() {
 		try {
@@ -466,12 +529,13 @@ public class MolProcessor implements Runnable{
 				IAtomType type;
 				type = typeMatcher.findMatchingAtomType(acprotonate, atom);
 				if (type == null) return false;
-				AtomTypeManipulator.configure(atom, type);	// TODO: What does this line mean? Is this method correct at all?!
+				AtomTypeManipulator.configure(atom, type);
 			}
 			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
 			hAdder.addImplicitHydrogens(acprotonate);
-			return (satCheck.isSaturated(acprotonate)&&(AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH));
+			return (satCheck.isSaturated(acprotonate) && AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
 		} catch (CDKException e) {
+			e.printStackTrace();
 			return false;
 		} catch (CloneNotSupportedException e) {
 			e.printStackTrace();
@@ -525,26 +589,57 @@ public class MolProcessor implements Runnable{
 				adjacency[canPerm[i]][canPerm[j]] = this.adjacency[i][j];
 			}
 		// In canonical graph, find the last edge
-		int left=0,right=0;
-		outer:for (int i = 0; i < atoms.length; i++){
+		int rowLast=0,colLast=0;
+		for (int i = 0; i < atoms.length; i++){
 			for (int j = i+1; j < atoms.length; j++){
 				if (adjacency[i][j] != 0) {
-					left = i;
-					right = j;
-					//break outer;
+					rowLast = i;
+					colLast = j;
 				}
 			}
 		}
 		// map the last edge to the original graph
-		for (int i=0; i<atoms.length; i++) if (canPerm[i] == left) {left = i; break;}
-		for (int i=0; i<atoms.length; i++) if (canPerm[i] == right){right= i; break;}
+		for (int i=0; i<atoms.length; i++) if (canPerm[i] == rowLast) {rowLast = i; break;}
+		for (int i=0; i<atoms.length; i++) if (canPerm[i] == colLast){colLast= i; break;}
 		// remove the last edge
-		decBond(left, right);
+		decBond(rowLast, colLast);
 		// canonize and report the canonical string
 		int[] perm1 = graph.canonize(this, false);
 		String decString = molString(perm1);
-		incBond(left, right);
+		incBond(rowLast, colLast);
 		return decString;
+	}
+
+	@Override
+	protected Long compute() {
+		long count = 0;
+		if (startRight == atoms.length || isFull(startLeft)) {
+			if (startLeft == atoms.length-2) return count;
+			int right = startRight;
+			int [] oldBlocks = new int [blocks.length];
+			System.arraycopy(blocks, 0, oldBlocks, 0, blocks.length);
+			updateBlocks(startLeft);
+			startLeft+=1;
+			startRight=startLeft+1;
+			count += invoke();
+			blocks = oldBlocks;
+			startLeft-=1;
+			startRight=right;
+			return count;
+		}
+		else if (incBondWithBlocks(startLeft, startRight)) {
+			maxOpenings-=2;
+			if (new SortCompare(startLeft).isMinimal()) {
+				checkMolecule();
+				if (maxOpenings>0) count += invoke();	// if there are still open places for new bonds
+			}
+			decBond(startLeft, startRight);
+			maxOpenings+=2;
+		}
+		startRight++;
+		count += invoke();
+		startRight--;
+		return count;
 	}
 
 }
