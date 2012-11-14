@@ -105,44 +105,6 @@ public class Graph {
 		return str;
 	}
 
-	@SuppressWarnings("serial")
-	class Repeater extends RecursiveTask<Long> {
-		final int n;
-		final MolProcessor mol;
-		
-		public Repeater(final int m, final MolProcessor o) {
-			n=m;
-			mol = o;
-		}
-		@Override
-		protected Long compute() {
-//			System.out.println("Rep"+n);
-			canonize(mol, false);
-//			System.out.println("found"+n);
-			final List<RecursiveTask<Long>> tasks = new ArrayList<>();
-			for (int i=n; i<9; i++) {
-				tasks.add(new Repeater(n+1,mol));
-			}
-//			System.out.println("created"+n);
-			long count = 1;
-			for(final RecursiveTask<Long> task : invokeAll(tasks)) { 
-				count += task.join(); 
-			}
-//			System.out.println("finished"+n);
-			return count;
-		}
-	}
-	private final static ForkJoinPool forkJoinPool = new ForkJoinPool();
-
-	public void repeat(MolProcessor mol)
-	{
-		final long middle = System.currentTimeMillis();		
-		final long count = forkJoinPool.invoke(new Repeater(0, mol));
-		System.out.println("Count is "+count);
-		final long after = System.currentTimeMillis();		
-    	System.out.println("Time elapsed: "+(after-middle));
-	}
-	
 	
 	/**
 	 * Find the canonical labeling and the automorphism group of the graph.
@@ -195,12 +157,14 @@ public class Graph {
 			_add_vertex(bliss, colorTable.get(a.symbol));
 		}
 		for (int l=0; l<atomCount; l++)
-			for (int r=l+1; r<atomCount; r++) 
-				for (int o=0; o<mol.getBondOrder(l, r); o++) {
+			for (int r=l+1; r<atomCount; r++) {
+				int bondOrder = mol.getBondOrder(l, r);
+				for (int o=0; o<bondOrder; o++) {
 					final int vid = _add_vertex(bliss, bondColor);
 					_add_edge(bliss, l, vid);
 					_add_edge(bliss, r, vid);				
 				}
+			}
 		final int[] cf = _canonical_labeling(bliss, report?1:null); 
 		destroy(bliss);
 
