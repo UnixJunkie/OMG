@@ -1,7 +1,11 @@
 package org.omg;
 
 import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,11 +14,12 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.RecursiveTask;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.omg.tools.Atom;
+import org.omg.tools.*;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
@@ -38,7 +43,9 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	static final int MIN_CAN = 1;
 	static final int CAN_AUG = 2;
 	static final int BRT_FRC = 3;
+	static final int OPTIMAL = 4;	// currently mix of sem_can + min_can
 	final int method;
+	final boolean checkBad;
 	final boolean hashMap;	// otherwise, minimality check (with semiCan)
 	final boolean cdkCheck;
 	
@@ -49,7 +56,9 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	final int[][] adjacency;
 	final static AtomicLong duplicate = new AtomicLong(0);
 	private final IAtomContainer acontainer;
+	final boolean compatible[][][];
 
+	static boolean frag = false;
 	int []blocks;
 	int maxOpenings;
 	int startLeft;
@@ -57,15 +66,15 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	String canString="";
 	
 	private static final Set<String> molSet = Collections.synchronizedSet(new HashSet<String>());
+	private static final int MAX_LOOP_SIZE = 8;
 	
 
-	final boolean compatible[][][];
 
-	void init() {
+	void initCompatible() {
 		for (int i=0; i<atoms.length; i++){
 			compatible[i][i][0] = true;
 			for (int j=i+1; j<atoms.length; j++){
-				compatible[i][j][0] = compatible[j][i][0] = (atoms[i].symbol.equals(atoms[j].symbol)); // && adjacency[i][j] == adjacency[j][i];
+				compatible[i][j][0] = compatible[j][i][0] = (atoms[i].symbol.equals(atoms[j].symbol) && atoms[i].flag == atoms[j].flag); // && adjacency[i][j] == adjacency[j][i];
 			}
 		}
 	}
@@ -83,15 +92,16 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	public MolProcessor(final Atom[] atoms, final int nH, final int maxOpenings, 
 			            final int[][] adjacency, final Graph gr, String canStr, final int[] blocks,
 			            final int stL, final int stR, final IAtomContainer acontainer,
-			            final int method, final boolean hm, final boolean cdk) {
+			            final int method, final boolean hm, final boolean cdk, final boolean checkBad) {
 		this.method = method;
 		this.hashMap = hm;
 		this.cdkCheck = cdk;
+		this.checkBad = checkBad;
 		this.canString = canStr;
 		this.blocks = blocks.clone();
 		this.atoms = atoms;
 		this.compatible = new boolean[atoms.length][atoms.length][atoms.length];
-		init();
+		initCompatible();
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
 		graph = gr; 
@@ -106,10 +116,11 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	}
 	
 	public MolProcessor(final ArrayList<String> atomSymbols, String formula,
-			final int method, final boolean hm, final boolean cdk){
+			final int method, final boolean hm, final boolean cdk, final boolean checkBad){
 		this.method = method;
 		this.hashMap = hm;
 		this.cdkCheck = cdk;
+		this.checkBad = checkBad;
 		int nH=0;
 		int maxOpenings=0;
 		int atomCount=0;
@@ -134,7 +145,7 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 		startRight=1;
 		
 		this.compatible = new boolean[atoms.length][atoms.length][atoms.length];
-		init();
+		initCompatible();
 		blocks = new int [atoms.length];
 		for (int i=2; i<atoms.length; i++) {
 			if (atoms[i].symbol.equals(atoms[i-1].symbol))
@@ -238,7 +249,7 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	 * @param mol_counter
 	 * @param canString 
 	 */
-	public synchronized void writeMol(final BufferedWriter outFile, final long mol_counter, String canString) {
+	public void writeMol(final BufferedWriter outFile, final long mol_counter, String canString) {
 		StringWriter writer = new StringWriter();
 		int bondsCount = 0;
 		
@@ -266,7 +277,8 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	}
 	
 	private boolean incBondSemiCanBig(final int left, final int right){
-		if (right<atoms.length-1 && atoms[right].symbol.equals(atoms[right+1].symbol) && 
+		if (right<atoms.length-1 && atoms[left].flag == atoms[right].flag && 
+			atoms[right].symbol.equals(atoms[right+1].symbol) && 
 			adjacency[left][right]==adjacency[left][right+1]) {
 			int row;
 			for (row=left; row>0; row--)  {
@@ -279,7 +291,8 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	}
 	
 	private boolean incBondSemiCan(final int left, final int right){
-		if (right>left+1 && atoms[right].symbol.equals(atoms[right-1].symbol) && 
+		if (right>left+1 && !atoms[right].flag && 
+			atoms[right].symbol.equals(atoms[right-1].symbol) && 
 			adjacency[left][right]==adjacency[left][right-1]) {
 			int row;
 			for (row=left; row>0; row--)  {
@@ -298,11 +311,61 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 	private boolean incBond(final int left, final int right) {
 		if (isFull(left))  return false;
 		if (isFull(right)) return false;
-
+		if (checkBad && badSubStructure(left, right)) return false;
+		
 		if (adjacency[left][right] > 2) return false;	// no more than Triple bonds
 		adjacency[left][right]++;
 		adjacency[right][left]++;
 		return true;
+	}
+
+	private boolean badSubStructure(int left, int right) {
+		if (tripleInLoop(left, right)) return true;
+		if (twoDoubleInLoop(left, right)) return true;
+		return false;
+	}
+
+	private boolean twoDoubleInLoop(int left, int right) {
+		if (adjacency[left][right]==1){
+			for (int i=0; i<atoms.length; i++) {
+				if (adjacency[i][left] == 2) {
+					seen = new boolean[atoms.length];
+					seen[i] = true;
+					seen[left] = true;
+					if (canReach(right, i, 1)) return true;
+				}
+				if (adjacency[i][right] == 2) {
+					seen = new boolean[atoms.length];
+					seen[i] = true;
+					seen[right] = true;
+					if (canReach(left, i, 1)) return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean tripleInLoop(int left, int right) {
+		if (adjacency[left][right]==2){	// it will become a triple bond
+			return loop(left, right);
+		}
+		return false;
+	}
+
+	private boolean loop(int left, int right) {
+		seen = new boolean[atoms.length];
+		seen[left] = true;
+		return (canReach(right, left, 0));
+	}
+
+	private boolean canReach(int start, int target, int depth) {
+		if (start == target && depth>1) return true;
+		if (seen[start] || depth == MAX_LOOP_SIZE) return false;
+		seen[start] = true;
+		for (int i=0; i<atoms.length; i++)
+			if (adjacency[start][i]>0 && canReach(i, target, depth+1))
+				return true;
+		return false;
 	}
 
 	private boolean decBond(final int left, final int right) {
@@ -342,7 +405,7 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 				for (int yCol=atoms.length-1; yCol>=0; yCol--) {
 					if (maxVal <= adjacency[currentRow][yCol] && tPerm[yCol] == -1 && 
 //							compatible[yCol][xCol][base]) { 
-							atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
+							 !atoms[xCol].flag && !atoms[yCol].flag && atoms[xCol].symbol.equals(atoms[yCol].symbol) && areCompatible(yCol, xCol, base)) {
 						maxIndex = yCol;
 						maxVal = adjacency[currentRow][yCol];
 					}
@@ -356,7 +419,6 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 			return false;
 		}
 		
-		@SuppressWarnings("unchecked")
 		boolean isMinimal(){
 			iPerm = new int[atoms.length];
 			Arrays.fill(iPerm, -1);
@@ -364,11 +426,11 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 		}
 		
 		private boolean sortCheckMin2(int base) {
-			if (base == maxRow) return true;
+			if (base == maxRow+1) return true;
 			for (int row=0; row<=maxRow; row++){	// even check row == base
 				// check what happens if base <- row ?
 //				if (iPerm[row] != -1 || !compatible[row][base][base]) continue;
-				if (iPerm[row] != -1 || !atoms[base].symbol.equals(atoms[row].symbol)) continue;
+				if (iPerm[row] != -1 || !atoms[base].symbol.equals(atoms[row].symbol) || atoms[row].flag || atoms[base].flag) continue;
 				if (!areCompatible(row, base, base)) continue;
 				iPerm[row] = base;
 //				update(row, base);
@@ -396,22 +458,22 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 
 	//----------------------------------------------------------------------------------------
 
-	private void outputMatrix(BufferedWriter out) {
+	private void outputMatrix(PrintStream out, int[][] fragment) {
 		StringWriter writer = new StringWriter();
 		writer.write(PMG.formula+"\n");
 		writer.write("-----------"+(PMG.molCounter.get()-duplicate.get())+"\n");
 		for (int i=0; i<atoms.length; i++) {
 			for (int j=0; j<atoms.length; j++){
-				writer.write(""+adjacency[i][j]);
+				writer.write(""+fragment[i][j]);
 			}
 			writer.write("\n");
 		}
-		try {
-			out.write(writer.toString());
-		} catch (IOException e) {
-			System.err.println("Could not output to Matrix.");
-			e.printStackTrace();
-		}
+//		try {
+			out.print(writer.toString());
+//		} catch (IOException e) {
+//			System.err.println("Could not output the Matrix.");
+//			e.printStackTrace();
+//		}
 	}
 
 	@Override
@@ -425,6 +487,7 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 		switch(method){
 		case SEM_CAN:
 		case MIN_CAN:
+		case OPTIMAL:
 			generateOrderly();
 			break;
 		case CAN_AUG:
@@ -433,12 +496,22 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 		}
 	}
 
+//	private void submitNewTask() {
+//		if (PMG.availThreads.decrementAndGet()>=0) {
+//			PMG.pendingTasks.incrementAndGet();
+//			PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, canString, blocks, startLeft, startRight, acontainer, method, hashMap, cdkCheck));
+//			return;
+//		}
+//		PMG.availThreads.incrementAndGet();
+//		dispatch();
+//	}
+
 	private void submitNewTask() {
 		int avail = PMG.availThreads.get();
 		while (avail>0) {
 			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
 				PMG.pendingTasks.incrementAndGet();
-				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, canString, blocks, startLeft, startRight, acontainer, method, hashMap, cdkCheck));
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, graph, canString, blocks, startLeft, startRight, acontainer, method, hashMap, cdkCheck, checkBad));
 				return;
 			}
 			avail = PMG.availThreads.get();
@@ -458,15 +531,16 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 			updateBlocks(startLeft);
 			startLeft+=1;
 			startRight=startLeft+1;
-			submitNewTask();
+			generateOrderly();
 			blocks = oldBlocks;
 			startLeft-=1;
 			startRight=right;
 			return;
 		}
-		else if (incBondWithBlocks(startLeft, startRight)) {
+		else if ((method==MIN_CAN && incBond(startLeft, startRight)) ||
+				 (method!=MIN_CAN && incBondWithBlocks(startLeft, startRight))) {	// not MIN --> SEM or OPTIMAL
 			maxOpenings-=2;
-			if (new SortCompare(startLeft).isMinimal()) {
+			if (method==SEM_CAN || new SortCompare(startLeft).isMinimal()) {
 				checkMolecule();
 				if (maxOpenings>0) submitNewTask();	// if there are still open places for new bonds
 			}
@@ -474,7 +548,7 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 			maxOpenings+=2;
 		}
 		startRight++;
-		submitNewTask();
+		generateOrderly();
 		startRight--;
 	}
 
@@ -490,12 +564,12 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 		if (isComplete() && isConnectedDFS()) {
 			long currentCount = PMG.molCounter.incrementAndGet();
 			String canString = "";
-			if (hashMap) {
+			if (hashMap || frag) {
 				// canonize 
-				int[] perm1 = graph.canonize(this, true);	// ask for the automorphisms to be reported back
+				int[] perm1 = graph.canonize(this, false);	
 				canString = molString(perm1);
 			}
-			if (hashMap ? !molSet.add(canString):!new SortCompare().isMinimal()) {
+			if ((hashMap || frag) ? !molSet.add(canString):!new SortCompare().isMinimal()) {
 				duplicate.incrementAndGet();
 			} else {
 				writeToFile(currentCount, canString);
@@ -511,7 +585,6 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 		}
 		if(PMG.wFile){
 			writeMol(theOutFile, currentCount, canString);
-//					outputMatrix(PMG.matrixFile);
 		}
 	}
 
@@ -621,7 +694,7 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 			updateBlocks(startLeft);
 			startLeft+=1;
 			startRight=startLeft+1;
-			count += invoke();
+			count += fork().join();
 			blocks = oldBlocks;
 			startLeft-=1;
 			startRight=right;
@@ -631,15 +704,50 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 			maxOpenings-=2;
 			if (new SortCompare(startLeft).isMinimal()) {
 				checkMolecule();
-				if (maxOpenings>0) count += invoke();	// if there are still open places for new bonds
+				if (maxOpenings>0) count += fork().join();	// if there are still open places for new bonds
 			}
 			decBond(startLeft, startRight);
 			maxOpenings+=2;
 		}
 		startRight++;
-		count += invoke();
+		count += fork().join();
 		startRight--;
 		return count;
 	}
+	
+	public void useFragment(String fileName) {
+		System.out.println("Using the first structure in "+fileName+" as the starting fragment.");
+		try {
+			Scanner inFile = new Scanner(new FileInputStream(new File(fileName)));
+			int [] map = Util.readFragment(inFile, adjacency, atoms);
+			if (map == null) {
+				System.out.println("Could not initialize the fragment.");
+				return;
+			}
+			frag = true;
+//			outputMatrix(System.out, adjacency);
+			for (int i=0; i<map.length; i++) {
+				atoms[map[i]].flag = true;
+				if (map[i] < blocks.length-1) 
+					blocks[map[i]+1] = 0;
+			}
+		} catch (FileNotFoundException e) {
+			System.err.println("The fragments file "+fileName+" could not be found.");
+		}
+	}
+	
+//	public void addFragment(String fileName) {
+//		System.out.println("Adding fragments in "+fileName);
+//		try {
+//			Scanner inFile = new Scanner(new FileInputStream(new File(fileName)));
+//			while (true){
+//				int [][] fragment = new int [atoms.length][atoms.length];
+//				if (!Util.readFragment(inFile, fragment, atoms)) break;
+//				outputMatrix(System.out, fragment);
+//			}
+//		} catch (FileNotFoundException e) {
+//			System.err.println("The fragments file "+fileName+" could not be found.");
+//		}
+//	}
 
 }
