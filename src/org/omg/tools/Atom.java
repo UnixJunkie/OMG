@@ -10,6 +10,7 @@ public class Atom {
 	public final String symbol;
 	public final int maxValence;
 	public final List<Integer> valenceList;
+	public boolean flag = false;	// can be used for different purposes, e.g., to mark the atom being in a fragment
 //	int ID;
 	
 	public Atom (String s, int id) {
