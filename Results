@@ -160,6 +160,34 @@ Parallel execution with 4 threads.
 molecules:  366808
 duplicates: 364950; non-duplicates: 1858
 Duration: 109032 milliseconds
+
+-- PMG2.0:
+Processing C14H30
+Using semi-canonization and minimization in the end.
+Parallel execution with 4 threads.
+Unique molecular graphs:  1858
+Duplicates removed in the end: 364950
+Final molecule count: 1858 after rejecting 0 by CDK.
+Duration: 111044 milliseconds
+Started Tasks: 1
+
+
+Processing C14H30
+Using only minimization.
+Parallel execution with 4 threads.
+Unique molecular graphs:  1858
+Final molecule count: 1858 after rejecting 0 by CDK.
+Duration: 46044 milliseconds
+Started Tasks: 1
+
+Processing C14H30
+Using semi-canonization and minimization at each step.
+Parallel execution with 4 threads.
+Unique molecular graphs:  1858
+Final molecule count: 1858 after rejecting 0 by CDK.
+Duration: 28034 milliseconds
+Started Tasks: 1
+
    -----
 CDK-free C15H32
 Using only minimization.
@@ -425,3 +453,64 @@ duplicates: 20; non-duplicates: 4347
 Duration: 319079 milliseconds
 Started Tasks: 1
 
+************************************
+----- Fragments -----
+************************************
+Processing C9H10O3
+Using only minimization.
+Parallel execution with 4 threads.
+Using the first structure in fragment_benzene.sdf as the starting fragment.
+Unique molecular graphs:  29580
+Duplicates removed in the end: 5839050
+Final molecule count: 29580 after rejecting 0 by CDK.
+Duration: 268100 milliseconds
+Started Tasks: 1
+
+Processing C9H10O3
+Using semi-canonization and hash map.
+Using the first structure in fragment_benzene.sdf as the starting fragment.
+Unique molecular graphs:  29580
+Duplicates removed in the end: 207021
+Final molecule count: 29580 after rejecting 0 by CDK.
+Duration: 24055 milliseconds
+Started Tasks: 1
+
+Processing C9H10O3
+Using semi-canonization and minimization at each step.
+Parallel execution with 4 threads.
+Using the first structure in fragment_benzene.sdf as the starting fragment.
+Unique molecular graphs:  29580
+Duplicates removed in the end: 207021
+Final molecule count: 29580 after rejecting 0 by CDK.
+Duration: 16050 milliseconds
+Started Tasks: 1
+-------------------------
+Processing C9H11NO2
+Using semi-canonization and minimization at each step.
+Parallel execution with 4 threads.
+Using the first structure in fragment_benzene_CO2_CN.sdf as the starting fragment.
+Unique molecular graphs:  4462
+Duplicates removed in the end: 24782
+Final molecule count: 289 after rejecting 4173 by CDK.
+Duration: 5135 milliseconds
+Started Tasks: 1
+
+Processing C9H11NO2
+Using semi-canonization and minimization at each step.
+Parallel execution with 4 threads.
+Using the first structure in fragment_benzene_CO2_bis.sdf as the starting fragment.
+Unique molecular graphs:  7709
+Duplicates removed in the end: 40774
+Final molecule count: 595 after rejecting 7114 by CDK.
+Duration: 6079 milliseconds
+Started Tasks: 1
+
+Processing C9H11NO2
+Using semi-canonization and minimization at each step.
+Parallel execution with 4 threads.
+Using the first structure in fragment_benzene.sdf as the starting fragment.
+Unique molecular graphs:  709607
+Duplicates removed in the end: 5170899
+Final molecule count: 119955 after rejecting 589652 by CDK.
+Duration: 257418 milliseconds
+Started Tasks: 1
