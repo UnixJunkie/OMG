@@ -57,7 +57,7 @@ public class PMG{
 			else if(args[i].equals("-cdk")){
 				cdk = true;
 			}
-			else if(args[i].equals("-noBadSub")){
+			else if(args[i].equals("-nobadsub")){
 				checkBad = false;
 			}
 			else if(args[i].equals("-o")){
@@ -98,7 +98,7 @@ public class PMG{
 			finalCount = forkJoinPool.invoke(mp);
 		} else {
 			executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
-			availThreads = new AtomicInteger(executorCount-1);
+			availThreads = new AtomicInteger(2*executorCount-1);
 			startedTasks.getAndIncrement();
 			pendingTasks.getAndIncrement();
 			executor.execute(mp);
@@ -149,7 +149,7 @@ public class PMG{
 		System.out.println("\t-o  \tThe name of the output file");
 		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
 		System.out.println("\t-cdk \tEnables using CDK for removing unacceptable molecular structures in the end.");
-		System.out.println("\t-noBadSub \tDisables checking for bad substructures during the generation.");
+		System.out.println("\t-nobadsub \tDisables checking for bad substructures during the generation.");
 		System.exit(0);
 	}
 
