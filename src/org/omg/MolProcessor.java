@@ -584,7 +584,8 @@ public class MolProcessor extends RecursiveTask<Long> implements Runnable{
 			theOutFile = PMG.rejectedFile;
 		}
 		if(PMG.wFile){
-			writeMol(theOutFile, currentCount, canString);
+//			writeMol(theOutFile, currentCount, canString);
+			PMG.fileWriterExecutor.submit(new MoleculeWriter(atoms, theOutFile, currentCount, canString, adjacency));
 		}
 	}
 

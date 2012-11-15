@@ -4,6 +4,8 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -25,6 +27,7 @@ public class PMG{
 	final static SaturationChecker satCheck = new SaturationChecker();
 	final static LinkedBlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<Runnable>();
 	static ThreadPoolExecutor executor;
+	static ExecutorService fileWriterExecutor;
 	static int executorCount;
 	static boolean wFile;
 	static String formula = null;
@@ -57,7 +60,7 @@ public class PMG{
 			else if(args[i].equals("-cdk")){
 				cdk = true;
 			}
-			else if(args[i].equals("-nobadsub")){
+			else if(args[i].equals("-allow")){
 				checkBad = false;
 			}
 			else if(args[i].equals("-o")){
@@ -81,6 +84,7 @@ public class PMG{
 			outFile = new BufferedWriter(new FileWriter(out));
 			rejectedFile =  new BufferedWriter(new FileWriter("Rejected_"+out));
 			CDKFile = new BufferedWriter(new FileWriter("CDK_"+out));
+			fileWriterExecutor = Executors.newSingleThreadExecutor();
 		}
 		startupMessages();
 		long before = System.currentTimeMillis();
@@ -98,7 +102,7 @@ public class PMG{
 			finalCount = forkJoinPool.invoke(mp);
 		} else {
 			executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
-			availThreads = new AtomicInteger(2*executorCount-1);
+			availThreads = new AtomicInteger(executorCount-1);
 			startedTasks.getAndIncrement();
 			pendingTasks.getAndIncrement();
 			executor.execute(mp);
@@ -119,6 +123,7 @@ public class PMG{
 
 	private static void startupMessages() {
 		System.out.println("Processing "+formula);
+		if (!checkBad) System.out.println("The check for bad substructures is disabled.");
 		switch(method){
 		case MolProcessor.BRT_FRC: System.out.println("Using brute-force."); break;
 		case MolProcessor.CAN_AUG: System.out.println("Using canonical augmentation with bliss as canonizer."); break;
@@ -149,7 +154,7 @@ public class PMG{
 		System.out.println("\t-o  \tThe name of the output file");
 		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
 		System.out.println("\t-cdk \tEnables using CDK for removing unacceptable molecular structures in the end.");
-		System.out.println("\t-nobadsub \tDisables checking for bad substructures during the generation.");
+		System.out.println("\t-allow \tAllow bad substructures in the molecular structure.");
 		System.exit(0);
 	}
 
@@ -163,7 +168,7 @@ public class PMG{
 		}
 		
 		try {
-			if (wFile) {outFile.close(); rejectedFile.close(); CDKFile.close(); }
+			if (wFile) {outFile.close(); rejectedFile.close(); CDKFile.close(); fileWriterExecutor.shutdown(); }
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
