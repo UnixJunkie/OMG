@@ -18,7 +18,7 @@ import org.openscience.cdk.tools.SaturationChecker;
 
 public class PMG{
 	/**Output File containing the list of graph. */
-	static BufferedWriter outFile, rejectedFile, CDKFile;
+	static BufferedWriter outFile;
 	static AtomicInteger availThreads;
 	final static AtomicLong molCounter = new AtomicLong(0);
 	final static AtomicLong rejectedByCDK = new AtomicLong(0);
@@ -82,27 +82,27 @@ public class PMG{
 
 		if (wFile) {
 			outFile = new BufferedWriter(new FileWriter(out));
-			rejectedFile =  new BufferedWriter(new FileWriter("Rejected_"+out));
-			CDKFile = new BufferedWriter(new FileWriter("CDK_"+out));
+			executorCount *= 2;		// in case of IO-bound, we increase the number of threads
 			fileWriterExecutor = Executors.newSingleThreadExecutor();
 		}
+		availThreads = new AtomicInteger(executorCount);	// number of tasks in the queue; or, to generate in parallel
 		startupMessages();
 		long before = System.currentTimeMillis();
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
 		if (atomSymbols == null) System.exit(1);
-		MolProcessor mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad);
+		MolProcessor mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad, fragFiles.size() != 0);
 		for (String fileName : fragFiles) {
 //			mp.addFragment(fileName);
 			mp.useFragment(fileName);
 		}
 
-		long finalCount;
+		long finalCount=0;
 		if (java7){
-			ForkJoinPool forkJoinPool = new ForkJoinPool();
-			finalCount = forkJoinPool.invoke(mp);
+			System.out.println("Fork/Join not supported.");
+//			ForkJoinPool forkJoinPool = new ForkJoinPool();
+//			finalCount = forkJoinPool.invoke(mp);
 		} else {
 			executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
-			availThreads = new AtomicInteger(executorCount-1);
 			startedTasks.getAndIncrement();
 			pendingTasks.getAndIncrement();
 			executor.execute(mp);
@@ -125,12 +125,14 @@ public class PMG{
 		System.out.println("Processing "+formula);
 		if (!checkBad) System.out.println("The check for bad substructures is disabled.");
 		switch(method){
-		case MolProcessor.BRT_FRC: System.out.println("Using brute-force."); break;
-		case MolProcessor.CAN_AUG: System.out.println("Using canonical augmentation with bliss as canonizer."); break;
-		case MolProcessor.MIN_CAN: System.out.println("Using only minimization."); break;
-		case MolProcessor.SEM_CAN: System.out.println("Using semi-canonization and "+(hashMap?"hash map.":"minimization in the end.")); break;
-		case MolProcessor.OPTIMAL: System.out.println("Using semi-canonization and minimization at each step."); break;
+		case MolProcessor.BRT_FRC: System.out.print("Using brute-force"); break;
+		case MolProcessor.CAN_AUG: System.out.print("Using canonical augmentation with bliss as canonizer"); break;
+		case MolProcessor.MIN_CAN: System.out.print("Using only minimization"); break;
+		case MolProcessor.SEM_CAN: System.out.print("Using semi-canonization and "+(hashMap?"hash map":"minimization in the end")); break;
+		case MolProcessor.OPTIMAL: System.out.print("Using semi-canonization and minimization at each step"); break;
 		}
+		if (wFile) System.out.print(", with output to file");
+		System.out.println(".");
 		if (executorCount > 1)    System.out.println("Parallel execution with "+executorCount+" threads.");
 	}
 
@@ -168,8 +170,15 @@ public class PMG{
 		}
 		
 		try {
-			if (wFile) {outFile.close(); rejectedFile.close(); CDKFile.close(); fileWriterExecutor.shutdown(); }
+			if (wFile) { 
+				fileWriterExecutor.shutdown(); 
+				while (!fileWriterExecutor.awaitTermination(60, TimeUnit.SECONDS));
+				outFile.close(); 
+			}
 		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			System.err.println("Failed while waiting for file outputs to complete.");
 			e.printStackTrace();
 		}
 	}
