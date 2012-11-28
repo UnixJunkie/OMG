@@ -176,6 +176,9 @@ public class PMG{
 		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
 		System.out.println("\t-cdk \tEnables using CDK for removing unacceptable molecular structures in the end.");
 		System.out.println("\t-allow \tAllow bad substructures in the molecular structure.");
+		System.out.println("\t-fr \tA file containing one substructure to use as initial structure for generation");
+		System.out.println("\t-goodlist \tA file containing requried substructures of the molecule (checked in the end) - only active if -cdk is used");
+		System.out.println("\t-badlist \tA file containing forbidden substructures (checked in the end) - only active if -cdk is used");
 		System.exit(0);
 	}
 
