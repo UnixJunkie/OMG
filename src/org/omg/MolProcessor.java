@@ -746,13 +746,13 @@ public class MolProcessor implements Runnable{
 		if (!acceptedByCDK()){
 			PMG.rejectedByCDK.incrementAndGet();
 		} else if(PMG.wFile){
-			try {
-				outFile.write(sdfStr);
-			} catch (IOException e) {
-				System.err.println("Could not write molecule to output file.");
-				e.printStackTrace();
-			} 
-			//PMG.fileWriterExecutor.submit(new MoleculeWriter(sdfStr, outFile));
+//			try {
+//				outFile.write(sdfStr);
+//			} catch (IOException e) {
+//				System.err.println("Could not write molecule to output file.");
+//				e.printStackTrace();
+//			} 
+			PMG.fileWriterExecutor.submit(new MoleculeWriter(sdfStr, outFile));
 		}
 	}
 
