@@ -1,10 +1,12 @@
 package org.omg;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -20,15 +22,19 @@ import java.util.concurrent.RecursiveTask;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.omg.tools.*;
+import org.openscience.cdk.ChemFile;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.interfaces.IAtomContainerSet;
 import org.openscience.cdk.interfaces.IAtomType;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.ICDKObject;
+import org.openscience.cdk.interfaces.IChemSequence;
+import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.io.MDLV2000Writer;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.SaturationChecker;
@@ -48,7 +54,9 @@ public class MolProcessor implements Runnable{
 	final boolean checkBad;
 	final boolean hashMap;	// otherwise, minimality check (with semiCan)
 	final boolean cdkCheck;
-	
+    final private IAtomContainerSet goodlistquery;
+    final private IAtomContainerSet badlistquery; 
+    
 	public final Atom[] atoms;
 //	int [] perm = identity();
 	final int nH;
@@ -93,7 +101,8 @@ public class MolProcessor implements Runnable{
 						final int[][] adjacency, final int[][]fragment, final int[][] connectivity, final int[][] loopPart, 
 			            final Graph gr, String canStr, final int[] blocks,
 			            final int stL, final int stR, final IAtomContainer acontainer,
-			            final int method, final boolean hm, final boolean cdk, final boolean checkBad) {
+			            final int method, final boolean hm, final boolean cdk, final boolean checkBad, 
+			            final IAtomContainerSet good, final IAtomContainerSet bad) {
 		this.method = method;
 		this.hashMap = hm;
 		this.cdkCheck = cdk;
@@ -101,6 +110,8 @@ public class MolProcessor implements Runnable{
 		this.canString = canStr;
 		this.blocks = blocks.clone();
 		this.atoms = atoms;
+		this.goodlistquery = good;
+		this.badlistquery = bad;
 //		this.compatible = new boolean[atoms.length][atoms.length][atoms.length];
 //		initCompatible();
 		this.nH = nH;
@@ -126,7 +137,7 @@ public class MolProcessor implements Runnable{
 	}
 	
 	public MolProcessor(final ArrayList<String> atomSymbols, String formula,
-			final int method, final boolean hm, final boolean cdk, final boolean checkBad, final boolean frag){
+			final int method, final boolean hm, final boolean cdk, final boolean checkBad, final boolean frag, String goodlist, String badlist) throws CDKException, FileNotFoundException{
 		this.method = method;
 		this.hashMap = hm;
 		this.cdkCheck = cdk;
@@ -176,6 +187,27 @@ public class MolProcessor implements Runnable{
 				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
 		}while(!inRightOrder(atomSymbols, lcontainer));	// make sure the order is as we want
 		acontainer = lcontainer;
+		
+		
+        if(goodlist != null){
+            InputStream ins = new BufferedInputStream(new FileInputStream(goodlist));
+            MDLV2000Reader reader = new MDLV2000Reader(ins);
+            ChemFile fileContents = (ChemFile)reader.read(new ChemFile());               
+            IChemSequence sequence = fileContents.getChemSequence(0);
+//            fragquery = sequence.getChemModel(0).getMoleculeSet().getAtomContainer(0);
+            goodlistquery = sequence.getChemModel(0).getMoleculeSet();
+        }  else 
+        	this.goodlistquery = null;
+        if(badlist != null){
+            InputStream ins = new BufferedInputStream(new FileInputStream(badlist));
+            MDLV2000Reader reader = new MDLV2000Reader(ins);
+            ChemFile fileContents = (ChemFile)reader.read(new ChemFile());               
+            IChemSequence sequence = fileContents.getChemSequence(0);
+//            fragquery = sequence.getChemModel(0).getMoleculeSet().getAtomContainer(0);
+            badlistquery = sequence.getChemModel(0).getMoleculeSet();
+        } else 
+        	this.badlistquery = null;
+
 	}
 
 	private boolean inRightOrder(ArrayList<String> atomSymbols, IAtomContainer lcontainer) {
@@ -655,7 +687,7 @@ public class MolProcessor implements Runnable{
 		while (avail>1) {
 			if (PMG.availThreads.compareAndSet(avail, avail-1)) {
 				PMG.pendingTasks.incrementAndGet();
-				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, fragment, connectivity, loopPart, graph, canString, blocks, startLeft, startRight, acontainer, method, hashMap, cdkCheck, checkBad));
+				PMG.executor.execute(new MolProcessor(atoms, nH, maxOpenings, adjacency, fragment, connectivity, loopPart, graph, canString, blocks, startLeft, startRight, acontainer, method, hashMap, cdkCheck, checkBad, goodlistquery, badlistquery));
 				return;
 			}
 			avail = PMG.availThreads.get();
@@ -757,30 +789,22 @@ public class MolProcessor implements Runnable{
 	}
 
 
-	final static SaturationChecker satCheck = new SaturationChecker();
 	private boolean acceptedByCDK() {
 		try {
 			IAtomContainer acprotonate = (IAtomContainer) acontainer.clone();
 			for (int r=0; r<atoms.length; r++)
 				for (int c=r+1; c<atoms.length; c++) 
 					if (adjacency[r][c] > 0) acprotonate.addBond(r, c, bondOrder(adjacency[r][c]));
-			CDKAtomTypeMatcher typeMatcher = CDKAtomTypeMatcher.getInstance(acprotonate.getBuilder());
-			for (IAtom atom : acprotonate.atoms()) {
-				IAtomType type;
-				type = typeMatcher.findMatchingAtomType(acprotonate, atom);
-				if (type == null) return false;
-				AtomTypeManipulator.configure(atom, type);
-			}
-			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-			hAdder.addImplicitHydrogens(acprotonate);
-			return (satCheck.isSaturated(acprotonate) && AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
+			return  CDKUtil.acceptedByCDK(acprotonate, nH) && 
+					CDKUtil.checkGood(acprotonate, goodlistquery) &&
+					CDKUtil.checkBad(acprotonate, badlistquery);	// if things go wrong, we assume it is accepted! :P
+		} catch (CloneNotSupportedException e) {
+			e.printStackTrace();
 		} catch (CDKException e) {
 			e.printStackTrace();
 			return false;
-		} catch (CloneNotSupportedException e) {
-			e.printStackTrace();
 		}
-		return true;	// if things go wrong, we assume it is accepted! :P
+		return true;
 	}
 
 

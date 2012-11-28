@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.omg.tools.Util;
+import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.tools.SaturationChecker;
 
 public class PMG{
@@ -36,8 +37,10 @@ public class PMG{
 	static boolean cdk = false;
 	static boolean checkBad = true;
 	private static boolean java7 = false;
-		
-	public static void main(String[] args) throws IOException{
+	private static String goodlist = null; //prescribed fragments to use as filter after generation process
+    private static String badlist = null; //badlist of fragments to use as filter after generation process. Molecules should not contain them 
+    
+	public static void main(String[] args) throws IOException, CDKException{
 		wFile = false;
 		String out = "default_out.sdf";
 		ArrayList<String> fragFiles = new ArrayList<>();
@@ -77,12 +80,28 @@ public class PMG{
 					System.out.println("Disregarding extra fragment: "+args[++i]);
 				}				
 			}
+			else if(args[i].equals("-goodlist")){
+                try {
+                    goodlist = args[++i];
+                } catch (Exception e) {
+                    System.err.println("No file with posterior substructures provided");
+                    System.exit(1);
+                }                   
+            }
+            else if(args[i].equals("-badlist")){
+                try {
+                    badlist = args[++i];
+                } catch (Exception e) {
+                    System.err.println("No file with posterior substructures provided");
+                    System.exit(1);
+                }                   
+            }
 		}
 		
 
 		if (wFile) {
 			outFile = new BufferedWriter(new FileWriter(out));
-			executorCount *= 2;		// in case of IO-bound, we increase the number of threads
+			//executorCount *= 2;		// in case of IO-bound, we increase the number of threads
 			fileWriterExecutor = Executors.newSingleThreadExecutor();
 		}
 		availThreads = new AtomicInteger(executorCount);	// number of tasks in the queue; or, to generate in parallel
@@ -90,7 +109,7 @@ public class PMG{
 		long before = System.currentTimeMillis();
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
 		if (atomSymbols == null) System.exit(1);
-		MolProcessor mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad, fragFiles.size() != 0);
+		MolProcessor mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad, fragFiles.size() != 0, goodlist, badlist);
 		for (String fileName : fragFiles) {
 //			mp.addFragment(fileName);
 			mp.useFragment(fileName);
