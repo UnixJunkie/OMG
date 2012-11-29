@@ -155,6 +155,7 @@ public class PMG{
 		if (executorCount > 1) System.out.print(""+executorCount+" threads, ");
 		if (wFile) System.out.print("with output to file, ");
 		System.out.print("\b\b.\n");
+		if (!cdk && (goodlist!= null || badlist != null)) System.out.println("Warning: The provided good- and/or bad-list will not be used because CDK is disabled.");
 	}
 
 	private static int interpretMethod(String methodStr) {
