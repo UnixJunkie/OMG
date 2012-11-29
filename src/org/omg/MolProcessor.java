@@ -775,7 +775,7 @@ public class MolProcessor implements Runnable{
 		String sdfStr = String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",atoms.length, bondsCount)
 				+ writer.toString();
 
-		if (!acceptedByCDK()){
+		if (cdkCheck && !acceptedByCDK()){
 			PMG.rejectedByCDK.incrementAndGet();
 		} else if(PMG.wFile){
 //			try {
