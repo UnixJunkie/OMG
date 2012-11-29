@@ -34,8 +34,8 @@ public class PMG{
 	static String formula = null;
 	static int method = MolProcessor.OPTIMAL;
 	static boolean hashMap = false;
-	static boolean cdk = false;
-	static boolean checkBad = true;
+	static boolean cdk = true;
+	static boolean checkBad = false;
 	private static boolean java7 = false;
 	private static String goodlist = null; //prescribed fragments to use as filter after generation process
     private static String badlist = null; //badlist of fragments to use as filter after generation process. Molecules should not contain them 
@@ -60,11 +60,11 @@ public class PMG{
 			else if(args[i].equals("-hashmap")){
 				hashMap = true;
 			}
-			else if(args[i].equals("-cdk")){
-				cdk = true;
+			else if(args[i].equals("-nocdk")){
+				cdk = false;
 			}
-			else if(args[i].equals("-allow")){
-				checkBad = false;
+			else if(args[i].equals("-filter")){
+				checkBad = true;
 			}
 			else if(args[i].equals("-o")){
 				out = args[++i];
@@ -104,7 +104,7 @@ public class PMG{
 			//executorCount *= 2;		// in case of IO-bound, we increase the number of threads
 			fileWriterExecutor = Executors.newSingleThreadExecutor();
 		}
-		availThreads = new AtomicInteger(executorCount);	// number of tasks in the queue; or, to generate in parallel
+		availThreads = new AtomicInteger(executorCount);	// number of tasks waiting in the queue; or, to generate in parallel
 		startupMessages();
 		long before = System.currentTimeMillis();
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
@@ -141,18 +141,20 @@ public class PMG{
 	}
 
 	private static void startupMessages() {
-		System.out.println("Processing "+formula);
-		if (!checkBad) System.out.println("The check for bad substructures is disabled.");
+		System.out.print("Processing "+formula+" using");
 		switch(method){
-		case MolProcessor.BRT_FRC: System.out.print("Using brute-force"); break;
-		case MolProcessor.CAN_AUG: System.out.print("Using canonical augmentation with bliss as canonizer"); break;
-		case MolProcessor.MIN_CAN: System.out.print("Using only minimization"); break;
-		case MolProcessor.SEM_CAN: System.out.print("Using semi-canonization and "+(hashMap?"hash map":"minimization in the end")); break;
-		case MolProcessor.OPTIMAL: System.out.print("Using semi-canonization and minimization at each step"); break;
+		case MolProcessor.BRT_FRC: System.out.println(" brute-force"); break;
+		case MolProcessor.CAN_AUG: System.out.println(" canonical augmentation with bliss as canonizer"); break;
+		case MolProcessor.MIN_CAN: System.out.println(" only minimization"); break;
+		case MolProcessor.SEM_CAN: System.out.println(" semi-canonization and "+(hashMap?"hash map":"minimization in the end")); break;
+		case MolProcessor.OPTIMAL: System.out.println(" semi-canonization and minimization at each step"); break;
 		}
-		if (wFile) System.out.print(", with output to file");
-		System.out.println(".");
-		if (executorCount > 1)    System.out.println("Parallel execution with "+executorCount+" threads.");
+		System.out.print("Selected options: ");
+		if (cdk) System.out.print("cdk"+(goodlist==null?"":" with good-list")+(badlist==null?"":(goodlist==null?" with":" and")+" bad-list")+", ");
+		if (checkBad) System.out.print("bad-sub filter, ");
+		if (executorCount > 1) System.out.print(""+executorCount+" threads, ");
+		if (wFile) System.out.print("with output to file, ");
+		System.out.print("\b\b.\n");
 	}
 
 	private static int interpretMethod(String methodStr) {
@@ -174,11 +176,11 @@ public class PMG{
 		System.out.println("\t-p  \tThe number of parallel threads to use; by default will use all available cores");
 		System.out.println("\t-o  \tThe name of the output file");
 		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
-		System.out.println("\t-cdk \tEnables using CDK for removing unacceptable molecular structures in the end.");
-		System.out.println("\t-allow \tAllow bad substructures in the molecular structure.");
+		System.out.println("\t-nocdk \tDisables using CDK for removing unacceptable molecular structures in the end.");
+		System.out.println("\t-filter \tFilter bad substructures in the molecular structure.");
 		System.out.println("\t-fr \tA file containing one substructure to use as initial structure for generation");
-		System.out.println("\t-goodlist \tA file containing requried substructures of the molecule (checked in the end) - only active if -cdk is used");
-		System.out.println("\t-badlist \tA file containing forbidden substructures (checked in the end) - only active if -cdk is used");
+		System.out.println("\t-goodlist \tA file containing requried substructures of the molecule (checked in the end) - only active if cdk is used");
+		System.out.println("\t-badlist \tA file containing forbidden substructures (checked in the end) - only active if cdk is used");
 		System.exit(0);
 	}
 
