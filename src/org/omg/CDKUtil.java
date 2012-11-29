@@ -15,16 +15,20 @@ import org.openscience.smsd.Substructure;
 public class CDKUtil {
 	final static SaturationChecker satCheck = new SaturationChecker();
 	public static boolean acceptedByCDK(IAtomContainer acprotonate, int nH) throws CDKException {
-		CDKAtomTypeMatcher typeMatcher = CDKAtomTypeMatcher.getInstance(acprotonate.getBuilder());
-		for (IAtom atom : acprotonate.atoms()) {
-			IAtomType type;
-			type = typeMatcher.findMatchingAtomType(acprotonate, atom);
-			if (type == null) return false;
-			AtomTypeManipulator.configure(atom, type);
+		try{
+			CDKAtomTypeMatcher typeMatcher = CDKAtomTypeMatcher.getInstance(acprotonate.getBuilder());
+			for (IAtom atom : acprotonate.atoms()) {
+				IAtomType type;
+				type = typeMatcher.findMatchingAtomType(acprotonate, atom);
+				if (type == null) return false;
+				AtomTypeManipulator.configure(atom, type);
+			}
+			CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
+			hAdder.addImplicitHydrogens(acprotonate);
+			return (satCheck.isSaturated(acprotonate) && AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
+		} catch (NullPointerException nle) {
+			return false;
 		}
-		CDKHydrogenAdder hAdder = CDKHydrogenAdder.getInstance(acprotonate.getBuilder());
-		hAdder.addImplicitHydrogens(acprotonate);
-		return (satCheck.isSaturated(acprotonate) && AtomContainerManipulator.getTotalHydrogenCount(acprotonate)==nH);
 
 	}
 
