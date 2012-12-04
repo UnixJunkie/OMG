@@ -143,7 +143,7 @@ public class PMG{
 			if (verbose) System.out.println("Rejecting "+rejectedByCDK.get()+" by CDK.");
 		}
 		System.out.println("Duration: " + (after - before) + " milliseconds");
-		System.out.println("Started Tasks: "+startedTasks.get());
+		if (verbose) System.out.println("Started Tasks: "+startedTasks.get());
 	}
 
 	private static void startupMessages() {
@@ -179,11 +179,11 @@ public class PMG{
 		System.out.println("Usage: PMG <formula> [options]");
 		System.out.println("Providing a formula for the elemental compositoin is obligatory, e.g., C4H7NO3.");
 		System.out.println("You can further specify the following options. Note that if you don't specify a method (-m) then an optimal method will be used, which is a mix of semi-canonicity and minimization.");
-		System.out.println("\t-badlist \tA file containing forbidden substructures (checked in the end) - only active if cdk is used");
+		System.out.println("\t-badlist\tA file containing forbidden substructures (checked in the end) - only active if cdk is used");
 		System.out.println("\t-filter \tFilter bad substructures in the molecular structure.");
 		System.out.println("\t-fr \tA file containing one substructure to use as initial structure for generation");
-		System.out.println("\t-goodlist \tA file containing requried substructures of the molecule (checked in the end) - only active if cdk is used");
-		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
+		System.out.println("\t-goodlist\tA file containing requried substructures of the molecule (checked in the end) - only active if cdk is used");
+		System.out.println("\t-hashmap\tEnables using a hashmap with semi-canonicity instead of the minimizer");
 		System.out.println("\t-m \tThe method to use: 0=semi-canonicity; 1=minimization; 2=canonical-augmentation; 3=brute-force");
 		System.out.println("\t-nocdk \tDisables using CDK for removing unacceptable molecular structures in the end.");
 		System.out.println("\t-p  \tThe number of parallel threads to use; by default will use all available cores");

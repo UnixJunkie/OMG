@@ -117,16 +117,17 @@ public class MolProcessor implements Runnable{
 		this.nH = nH;
 		this.maxOpenings = maxOpenings;
 		graph = gr; 
+		this.fragment = fragment;
 		this.adjacency    = new int [atoms.length][atoms.length];
-		if (fragment != null) 
-			this.fragment = new int [atoms.length][atoms.length];
-		else 
-			this.fragment = null;
+//		if (fragment != null) 
+//			this.fragment = new int [atoms.length][atoms.length];
+//		else 
+//			this.fragment = null;
 		this.connectivity = new int [atoms.length][atoms.length];
 		this.loopPart     = new int [atoms.length][atoms.length];
 		for (int i=0; i<atoms.length; i++)
 			for (int j=0; j<atoms.length; j++){
-				if (fragment != null) this.fragment[i][j] = fragment[i][j];
+//				if (fragment != null) this.fragment[i][j] = fragment[i][j];
 				this.adjacency[i][j]    = adjacency[i][j];
 				this.connectivity[i][j] = connectivity[i][j];
 				this.loopPart[i][j]     = loopPart[i][j];
