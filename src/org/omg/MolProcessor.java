@@ -48,7 +48,7 @@ public class MolProcessor implements Runnable{
 	static final int SEM_CAN = 0;
 	static final int MIN_CAN = 1;
 	static final int CAN_AUG = 2;
-	static final int BRT_FRC = 3;
+//	static final int BRT_FRC = 3;
 	static final int OPTIMAL = 4;	// currently mix of sem_can + min_can
 	final int method;
 	final boolean checkBad;
@@ -739,16 +739,10 @@ public class MolProcessor implements Runnable{
 
 	private void checkMolecule() {
 		if (isComplete() && isConnected()) {
-			String canString = "";
-			if (hashMap || frag) {
-				// canonize 
-				int[] perm1 = graph.canonize(this, false);	
-				canString = molString(perm1);
-			}
-			if ((hashMap || frag) ? !molSet.add(canString):!new SortCompare().isMinimal()) {
+			if (!(hashMap || frag) && !new SortCompare().isMinimal()) {
 				duplicate.incrementAndGet();
 			} else {
-				finalProcess(canString);
+				finalProcess(null);
 			}
 		}	
 	}
@@ -757,6 +751,13 @@ public class MolProcessor implements Runnable{
 		if (cdkCheck && !acceptedByCDK()){
 			PMG.rejectedByCDK.incrementAndGet();
 		} else{
+			if (hashMap || frag) {
+				if (canString == null) canString = molString(graph.canonize(this, false));
+				if (!molSet.add(canString)) {
+					duplicate.incrementAndGet();
+					return;
+				}
+			}
 			long currentCount = PMG.molCounter.incrementAndGet();
 			if(PMG.wFile){
 				BufferedWriter outFile = PMG.outFile;
@@ -831,9 +832,9 @@ public class MolProcessor implements Runnable{
 					int[] perm1 = graph.canonize(this, false);
 					String childString = molString(perm1);
 					if (visited.add(childString)) {	
-						if (method == BRT_FRC || pString.equals("") || pString.equals(degrade(perm1))){ 
+						if (pString.equals("") || pString.equals(degrade(perm1))){ 
 							maxOpenings -= 2;
-							if (isComplete() && isConnectedDFS() && (!frag || molSet.add(childString))) {
+							if (isComplete() && isConnectedDFS()) {
 								finalProcess(childString);
 							}	
 							canString = childString;
