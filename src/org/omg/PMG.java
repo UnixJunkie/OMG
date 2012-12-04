@@ -36,9 +36,10 @@ public class PMG{
 	static boolean hashMap = false;
 	static boolean cdk = true;
 	static boolean checkBad = false;
-	private static boolean java7 = false;
+	private static boolean java7 = false, verbose = false;
 	private static String goodlist = null; //prescribed fragments to use as filter after generation process
     private static String badlist = null; //badlist of fragments to use as filter after generation process. Molecules should not contain them 
+    private static MolProcessor mp;
     
 	public static void main(String[] args) throws IOException, CDKException{
 		wFile = false;
@@ -72,6 +73,9 @@ public class PMG{
 			}
 			else if(args[i].equals("-forkjoin")){
 				java7 = true;
+			}
+			else if(args[i].equals("-v")){
+				verbose = true;
 			}
 			else if(args[i].equals("-fr")){
 				if (fragFiles.size() == 0) {
@@ -109,7 +113,7 @@ public class PMG{
 		long before = System.currentTimeMillis();
 		ArrayList<String> atomSymbols = Util.parseFormula(formula);
 		if (atomSymbols == null) System.exit(1);
-		MolProcessor mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad, fragFiles.size() != 0, goodlist, badlist);
+		mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad, fragFiles.size() != 0, goodlist, badlist);
 		for (String fileName : fragFiles) {
 //			mp.addFragment(fileName);
 			mp.useFragment(fileName);
@@ -133,9 +137,11 @@ public class PMG{
 		long after = System.currentTimeMillis();		
 
 		// Report the number of generated molecules
-		System.out.println("Unique molecular graphs:  " + (finalCount-MolProcessor.duplicate.get()));
-		if (method == MolProcessor.SEM_CAN || mp.frag) System.out.println("Duplicates removed in the end: "+MolProcessor.duplicate.get());
-		if (cdk) System.out.println("Final molecule count: "+(finalCount-MolProcessor.duplicate.get()-rejectedByCDK.get())+" after rejecting "+rejectedByCDK.get()+" by CDK.");
+		System.out.println("Unique molecule count:  " + (finalCount));
+		if (verbose && (method == MolProcessor.SEM_CAN || mp.frag)) System.out.println("Duplicates removed in the end: "+MolProcessor.duplicate.get());
+		if (cdk) {
+			if (verbose) System.out.println("Rejecting "+rejectedByCDK.get()+" by CDK.");
+		}
 		System.out.println("Duration: " + (after - before) + " milliseconds");
 		System.out.println("Started Tasks: "+startedTasks.get());
 	}
@@ -143,7 +149,7 @@ public class PMG{
 	private static void startupMessages() {
 		System.out.print("Processing "+formula+" using");
 		switch(method){
-		case MolProcessor.BRT_FRC: System.out.println(" brute-force"); break;
+//		case MolProcessor.BRT_FRC: System.out.println(" brute-force"); break;
 		case MolProcessor.CAN_AUG: System.out.println(" canonical augmentation with bliss as canonizer"); break;
 		case MolProcessor.MIN_CAN: System.out.println(" only minimization"); break;
 		case MolProcessor.SEM_CAN: System.out.println(" semi-canonization and "+(hashMap?"hash map":"minimization in the end")); break;
@@ -173,22 +179,30 @@ public class PMG{
 		System.out.println("Usage: PMG <formula> [options]");
 		System.out.println("Providing a formula for the elemental compositoin is obligatory, e.g., C4H7NO3.");
 		System.out.println("You can further specify the following options. Note that if you don't specify a method (-m) then an optimal method will be used, which is a mix of semi-canonicity and minimization.");
-		System.out.println("\t-m \tThe method to use: 0=semi-canonicity; 1=minimization; 2=canonical-augmentation; 3=brute-force");
-		System.out.println("\t-p  \tThe number of parallel threads to use; by default will use all available cores");
-		System.out.println("\t-o  \tThe name of the output file");
-		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
-		System.out.println("\t-nocdk \tDisables using CDK for removing unacceptable molecular structures in the end.");
+		System.out.println("\t-badlist \tA file containing forbidden substructures (checked in the end) - only active if cdk is used");
 		System.out.println("\t-filter \tFilter bad substructures in the molecular structure.");
 		System.out.println("\t-fr \tA file containing one substructure to use as initial structure for generation");
 		System.out.println("\t-goodlist \tA file containing requried substructures of the molecule (checked in the end) - only active if cdk is used");
-		System.out.println("\t-badlist \tA file containing forbidden substructures (checked in the end) - only active if cdk is used");
+		System.out.println("\t-hashmap \tEnables using a hashmap with semi-canonicity instead of the minimizer");
+		System.out.println("\t-m \tThe method to use: 0=semi-canonicity; 1=minimization; 2=canonical-augmentation; 3=brute-force");
+		System.out.println("\t-nocdk \tDisables using CDK for removing unacceptable molecular structures in the end.");
+		System.out.println("\t-p  \tThe number of parallel threads to use; by default will use all available cores");
+		System.out.println("\t-o  \tThe name of the output file");
+		System.out.println("\t-v  \tverbose mode");
 		System.exit(0);
 	}
 
 	private static void wait2Finish() {
+		int timer = 60;
 		while (0 < pendingTasks.get()){
 			try {
 				Thread.sleep(1000);
+				if (timer > 0)
+					timer--;
+				else {
+					System.out.println("Molecules generated so far: "+molCounter.get());
+					timer = 60;
+				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}

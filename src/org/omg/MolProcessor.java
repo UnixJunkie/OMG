@@ -738,7 +738,6 @@ public class MolProcessor implements Runnable{
 
 	private void checkMolecule() {
 		if (isComplete() && isConnected()) {
-			long currentCount = PMG.molCounter.incrementAndGet();
 			String canString = "";
 			if (hashMap || frag) {
 				// canonize 
@@ -748,43 +747,45 @@ public class MolProcessor implements Runnable{
 			if ((hashMap || frag) ? !molSet.add(canString):!new SortCompare().isMinimal()) {
 				duplicate.incrementAndGet();
 			} else {
-				writeToFile(currentCount, canString);
+				finalProcess(canString);
 			}
 		}	
 	}
 
-	private void writeToFile(long currentCount, String canString) {
-		BufferedWriter outFile = PMG.outFile;
-		StringWriter writer = new StringWriter();
-		int bondsCount = 0;
-		
-		for (Atom atom : atoms) {
-			writer.write(String.format("    0.0000    0.0000    0.0000 %-3s 0  0  0  0  0  0%n", atom.symbol));
-		}
-		for (int i=0; i<atoms.length; i++)
-			for (int j=0; j<i; j++) {
-				int order = adjacency[i][j];
-				if (order > 0){
-					bondsCount++;
-					writer.write(String.format("%3d%3d%3d%3d%3d%3d%n",i+1, j+1, order, 0, 0, 0));
-				}
-			}
-		
-		writer.write("M  END\n> <Id>\n"+currentCount+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
-		// For the sake of calculating the bondsCount, we write the first line last!
-		String sdfStr = String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",atoms.length, bondsCount)
-				+ writer.toString();
-
+	private void finalProcess(String canString) {
 		if (cdkCheck && !acceptedByCDK()){
 			PMG.rejectedByCDK.incrementAndGet();
-		} else if(PMG.wFile){
-//			try {
-//				outFile.write(sdfStr);
-//			} catch (IOException e) {
-//				System.err.println("Could not write molecule to output file.");
-//				e.printStackTrace();
-//			} 
-			PMG.fileWriterExecutor.submit(new MoleculeWriter(sdfStr, outFile));
+		} else{
+			long currentCount = PMG.molCounter.incrementAndGet();
+			if(PMG.wFile){
+				BufferedWriter outFile = PMG.outFile;
+				StringWriter writer = new StringWriter();
+				int bondsCount = 0;
+
+				for (Atom atom : atoms) {
+					writer.write(String.format("    0.0000    0.0000    0.0000 %-3s 0  0  0  0  0  0%n", atom.symbol));
+				}
+				for (int i=0; i<atoms.length; i++)
+					for (int j=0; j<i; j++) {
+						int order = adjacency[i][j];
+						if (order > 0){
+							bondsCount++;
+							writer.write(String.format("%3d%3d%3d%3d%3d%3d%n",i+1, j+1, order, 0, 0, 0));
+						}
+					}
+
+				writer.write("M  END\n> <Id>\n"+currentCount+"\n\n> <can_string>\n"+canString+"\n\n$$$$\n");
+				// For the sake of calculating the bondsCount, we write the first line last!
+				String sdfStr = String.format("%n  PMG%n%n%3d%3d  0  0  0  0  0  0  0  0  0%n",atoms.length, bondsCount)
+						+ writer.toString();
+				//			try {
+				//				outFile.write(sdfStr);
+				//			} catch (IOException e) {
+				//				System.err.println("Could not write molecule to output file.");
+				//				e.printStackTrace();
+				//			} 
+				PMG.fileWriterExecutor.submit(new MoleculeWriter(sdfStr, outFile));
+		}
 		}
 	}
 
@@ -832,7 +833,7 @@ public class MolProcessor implements Runnable{
 						if (method == BRT_FRC || pString.equals("") || pString.equals(degrade(perm1))){ 
 							maxOpenings -= 2;
 							if (isComplete() && isConnectedDFS() && (!frag || molSet.add(childString))) {
-								writeToFile(PMG.molCounter.incrementAndGet(), childString);
+								finalProcess(childString);
 							}	
 							canString = childString;
 							submitNewTask();
@@ -877,7 +878,7 @@ public class MolProcessor implements Runnable{
 	}
 	
 	public void useFragment(String fileName) {
-		System.out.println("Using the first structure in "+fileName+" as the starting fragment.");
+		System.out.println("Using the first molecule in "+fileName+" as the starting fragment.");
 		try {
 			Scanner inFile = new Scanner(new FileInputStream(new File(fileName)));
 			int [] map = Util.readFragment(inFile, adjacency, atoms);
@@ -889,7 +890,10 @@ public class MolProcessor implements Runnable{
 			for (int i=0; i<atoms.length; i++)
 				for (int j=0; j<atoms.length; j++){
 					fragment[i][j] = adjacency[i][j];
-					if (fragment[i][j]>0) connectIfNotBad(i,j);
+					if (fragment[i][j]>0) {
+						connectIfNotBad(i,j);
+						maxOpenings -= fragment[i][j];
+					}
 				}
 //			outputMatrix(System.out, adjacency);
 			for (int i=0; i<map.length; i++) {
