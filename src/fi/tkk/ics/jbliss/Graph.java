@@ -1,9 +1,3 @@
-/* 
- * @(#)Graph.java
- *
- * Copyright 2007-2010 by Tommi Junttila.
- * Released under the GNU General Public License version 3.
- */
 
 package fi.tkk.ics.jbliss;
 
@@ -22,7 +16,14 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
 
-
+/**
+ * To convert a multi-graph to a simple graph, we create N vertexes for each edge of order N.
+ * These vertexes are connected to the actual vertexes at the two ends of the edge.
+ * These vertexes have a different color than the actual ones.
+ *  
+ * @author mmajid
+ *
+ */
 public class Graph {
 	public int[] orbitRep;
 	private int atomCount;
@@ -145,10 +146,7 @@ public class Graph {
 		return cf;
 	}
 	
-	public int[] canonize(final MolProcessor mol, final boolean report) {
-		for (int i=0; i<atomCount; i++){
-			orbitRep[i] = i;	// start with no symmetry
-		}
+	public int[] canonize(final MolProcessor mol) {
 		// create a bliss instance for calculating the canonical labeling
 		final long bliss = create();
 		assert bliss != 0;
@@ -162,10 +160,10 @@ public class Graph {
 				for (int o=0; o<bondOrder; o++) {
 					final int vid = _add_vertex(bliss, bondColor);
 					_add_edge(bliss, l, vid);
-					_add_edge(bliss, r, vid);				
+					_add_edge(bliss, r, vid);
 				}
 			}
-		final int[] cf = _canonical_labeling(bliss, report?1:null); 
+		final int[] cf = _canonical_labeling(bliss, null); // no need to report the automorphisms back
 		destroy(bliss);
 
 		return cf;

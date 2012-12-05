@@ -11,29 +11,21 @@ public class Atom {
 	public final int maxValence;
 	public final List<Integer> valenceList;
 	public boolean flag = false;	// can be used for different purposes, e.g., to mark the atom being in a fragment
-//	int ID;
 	
 	public Atom (String s, int id) {
 		symbol = s;
 		valenceList = valenceTable.get(symbol);
+		if (valenceList == null) {
+			System.err.println("The atom type "+symbol+" is not supported.");
+			System.exit(200);
+		}
 		maxValence = valenceList.get(0);
-//		ID = id;
 	}
 
-/*
-	public static List<Atom> create (String s) {
-		List<Integer> vlist = valenceTable.get(s);
-		List<Atom> atomList = new ArrayList<Atom>(vlist.size());
-		for (Integer v:vlist) {
-			atomList.add(new Atom(s,v));
-		}
-		return atomList;
-	}
-*/
 	static {
 		// initialize the table
 		valenceTable = new HashMap<>();
-		// TODO: read atom symbols from CDK
+		// TODO: read atom symbols from CDK?
 		valenceTable.put("H", Arrays.asList(1));
 		valenceTable.put("C", Arrays.asList(4));
 		valenceTable.put("N", Arrays.asList(5,3));	// Remember to put the biggest number first!?

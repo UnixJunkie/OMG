@@ -48,17 +48,15 @@ public class MolProcessor implements Runnable{
 	static final int SEM_CAN = 0;
 	static final int MIN_CAN = 1;
 	static final int CAN_AUG = 2;
-//	static final int BRT_FRC = 3;
 	static final int OPTIMAL = 4;	// currently mix of sem_can + min_can
 	final int method;
 	final boolean checkBad;
-	final boolean hashMap;	// otherwise, minimality check (with semiCan)
+	final boolean hashMap;	// otherwise, minimality check (used only with semiCan)
 	final boolean cdkCheck;
     final private IAtomContainerSet goodlistquery;
     final private IAtomContainerSet badlistquery; 
     
 	public final Atom[] atoms;
-//	int [] perm = identity();
 	final int nH;
 	final Graph graph;
 	final int[][] adjacency, fragment, connectivity, loopPart; // loopParticipation = in how many loops it participates 
@@ -414,9 +412,20 @@ public class MolProcessor implements Runnable{
 			prev_i=i; 
 			i=connectivity[i][left];
 		}
+		// Detect a triangle with a double bond
 		for (int j=0; j<atoms.length; j++){
-			if (adjacency[left][j] * adjacency[right][j]>=2) return true;
+			int triangle = adjacency[left][j] * adjacency[right][j];
+			if (triangle>=2) return true;
+			if (triangle>=1){
+				for (int jj=0; jj<atoms.length; jj++){
+					if (jj == left || jj == right || jj == j) continue;
+					if (adjacency[left][jj] * adjacency[right][jj]>0) return true;
+					if (adjacency[j][jj] * adjacency[right][jj]>0) return true;
+					if (adjacency[left][jj] * adjacency[j][jj]>0) return true;
+				}
+			}
 		}
+		// Detect a square with two double bonds
 		for (i=0; i<atoms.length; i++){
 			if (i == right || i == left) continue;
 			for (int j=0; j<atoms.length; j++){
@@ -752,7 +761,7 @@ public class MolProcessor implements Runnable{
 			PMG.rejectedByCDK.incrementAndGet();
 		} else{
 			if (hashMap || frag) {
-				if (canString == null) canString = molString(graph.canonize(this, false));
+				if (canString == null) canString = molString(graph.canonize(this));
 				if (!molSet.add(canString)) {
 					duplicate.incrementAndGet();
 					return;
@@ -829,7 +838,7 @@ public class MolProcessor implements Runnable{
 			for (int right = left+1; right < atoms.length; right++){
 					if (!incBond(left, right)) continue;	
 					// canonize 
-					int[] perm1 = graph.canonize(this, false);
+					int[] perm1 = graph.canonize(this);
 					String childString = molString(perm1);
 					if (visited.add(childString)) {	
 						if (pString.equals("") || pString.equals(degrade(perm1))){ 
@@ -872,7 +881,7 @@ public class MolProcessor implements Runnable{
 		this.adjacency[rowLast][colLast] --;
 		this.adjacency[colLast][rowLast] --;
 		// canonize and report the canonical string
-		int[] perm1 = graph.canonize(this, false);
+		int[] perm1 = graph.canonize(this);
 		String decString = molString(perm1);
 		this.adjacency[rowLast][colLast] ++;
 		this.adjacency[colLast][rowLast] ++;
