@@ -582,6 +582,13 @@ Final molecule count: 154801 after rejecting 433238 by CDK.
 Duration: 35053 milliseconds
 Started Tasks: 44977
 
+
+Processing C4H5N3O using semi-canonization and minimization at each step
+Selected options: cdk, bad-sub filter, 4 threads, with output to file, .
+Unique molecule count:  105185
+Duration: 14046 milliseconds
+
+
 -- After making writes to file in parallel:
 Processing C9H11NO2
 The check for bad substructures is disabled
@@ -593,3 +600,13 @@ Duplicates removed in the end: 5170899
 Final molecule count: 119955 after rejecting 589652 by CDK.
 Duration: 232908 milliseconds
 Started Tasks: 1
+
+Processing C9H11NO2 using semi-canonization and minimization at each step
+Selected options: cdk, bad-sub filter, 4 threads, with output to file, .
+Using the first molecule in substructures/fragment_benzene.sdf as the starting fragment.
+Molecules generated so far: 80227
+Unique molecule count:  80813
+Duplicates removed in the end: 2625589
+Rejecting 319967 by CDK.
+Duration: 88072 milliseconds
+Started Tasks: 319464
