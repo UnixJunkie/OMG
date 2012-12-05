@@ -1,4 +1,4 @@
-package org.omg;
+package org.omg.tools;
 
 import org.openscience.cdk.atomtype.CDKAtomTypeMatcher;
 import org.openscience.cdk.exception.CDKException;
