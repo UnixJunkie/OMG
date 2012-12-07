@@ -53,7 +53,7 @@ public class PMG{
 			outFile = new BufferedWriter(new FileWriter(out));
 			fileWriterExecutor = Executors.newSingleThreadExecutor();	// use an independent thread to write to file
 		}
-		availThreads = new AtomicInteger(executorCount);	// number of tasks waiting in the queue; or, to generate in parallel
+		availThreads = new AtomicInteger(executorCount-1);	// number of tasks waiting in the queue; or, to generate in parallel
 		startupMessages();
 		
 		long before = System.currentTimeMillis();
@@ -64,7 +64,8 @@ public class PMG{
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
 		startedTasks.getAndIncrement();
 		pendingTasks.getAndIncrement();
-		executor.execute(mp);	// start the generation
+//		executor.execute(mp);	// start the generation
+		mp.run();
 		wait2Finish();			// wait for all tasks to finish (pendingTasks == 0), and close the output file 
 		executor.shutdown();	// stop the executor --> kill the threads
 		long after = System.currentTimeMillis();		
@@ -76,9 +77,10 @@ public class PMG{
 	private static String parseArguments(String[] args){
 		int i=0;
 		String out=null;
+		boolean warned = false;
 		try{
 			formula = args[0];
-			for(i = 0; i < args.length; i++){
+			for(i = 1; i < args.length; i++){
 				if(args[i].equals("-p")){
 					executorCount = Integer.parseInt(args[++i]);
 				}
@@ -86,10 +88,10 @@ public class PMG{
 					executorCount = Integer.parseInt(args[i].substring(2));
 				}
 				else if(args[i].equals("-m")){
-					method = Integer.parseInt(args[++i]);
+					method = setMethod(Integer.parseInt(args[++i]));
 				}
 				else if(args[i].startsWith("-m")){
-					method = Integer.parseInt(args[i].substring(2));
+					method = setMethod(Integer.parseInt(args[i].substring(2)));
 				}
 				else if(args[i].equals("-hashmap")){
 					hashMap = true;
@@ -125,8 +127,12 @@ public class PMG{
 						badlist = args[++i];
 					else 
 						System.out.println("Disregarding the extra badlist: "+args[++i]);
-				} else 
-					System.out.println("Warning: Invalid arguments are ignored. Run the program with no arguments to see the usage.");
+				} else {
+					if (!warned){
+						System.out.println("Warning: Invalid arguments are ignored. Run the program with no arguments to see the usage.");
+						warned = true;
+					}
+				}
 			}
 		}catch(ArrayIndexOutOfBoundsException ae){
 			System.err.println("Insufficient parameters provided. Run the program with no arguments to see the usage.");
@@ -136,6 +142,17 @@ public class PMG{
 			System.exit(1);
 		}
 		return out;
+	}
+
+	private static int setMethod(int m) {
+		switch (m){
+		case 0:	return MolProcessor.SEM_CAN;
+		case 1:	return MolProcessor.MIN_CAN;
+		case 2:	return MolProcessor.CAN_AUG;
+		}
+		System.err.println("Invalid method is selected.");
+		usage();
+		return 0;	// Invalid method
 	}
 
 	private static void usage() {
@@ -158,10 +175,15 @@ public class PMG{
 	private static void startupMessages() {
 		System.out.print("Processing "+formula+" using");
 		switch(method){
-		case MolProcessor.CAN_AUG: System.out.println(" canonical augmentation with bliss as canonizer"); break;
+		case MolProcessor.CAN_AUG: System.out.println(" canonical augmentation with bliss as canonizer");
+		if (checkBad) {
+			checkBad = false;
+			System.out.println("Warning: Bad-sub filter cannot be used with canonical augmentation - filter disabled.");
+		}
+		break;
 		case MolProcessor.MIN_CAN: System.out.println(" only minimization"); break;
-		case MolProcessor.SEM_CAN: System.out.println(" semi-canonization and "+(hashMap?"hash map":"minimization in the end")); break;
-		case MolProcessor.OPTIMAL: System.out.println(" semi-canonization and minimization at each step"); break;
+		case MolProcessor.SEM_CAN: System.out.println(" semi-canonization and "+(hashMap?"hash map":"minimization test on finished molecules")); break;
+		case MolProcessor.OPTIMAL: System.out.println(" semi-canonization and minimization test on every generated structure"); break;
 		}
 		System.out.print("Selected options: ");
 		if (cdk) System.out.print("cdk"+(goodlist==null?"":" with good-list")+(badlist==null?"":(goodlist==null?" with":" and")+" bad-list")+", ");
@@ -178,7 +200,7 @@ public class PMG{
 			System.out.println("Started Tasks: "+startedTasks.get());
 		}
 		System.out.println("Unique molecule count:  " + molCounter.get());
-		System.out.println("Duration: " + duration + " milliseconds");
+		System.out.println("Duration: " + (duration/1000) + " seconds");
 	}
 
 	private static void wait2Finish() {

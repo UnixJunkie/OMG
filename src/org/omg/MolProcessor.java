@@ -45,13 +45,13 @@ import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 import fi.tkk.ics.jbliss.Graph;
 
 public class MolProcessor implements Runnable{
-	static final int SEM_CAN = 0;
-	static final int MIN_CAN = 1;
-	static final int CAN_AUG = 2;
-	static final int OPTIMAL = 4;	// currently mix of sem_can + min_can
-	final int method;
+	static final int SEM_CAN = 1;
+	static final int MIN_CAN = 2;
+	static final int CAN_AUG = 4;
+	static final int OPTIMAL = SEM_CAN | MIN_CAN;	// currently mix of sem_can + min_can
+	final int method;		// can be one of the above choices
 	final boolean checkBad;
-	final boolean hashMap;	// otherwise, minimality check (used only with semiCan)
+	final boolean hashMap;	// used with semiCan (otherwise, minimality check) for finished molecules
 	final boolean cdkCheck;
     final private IAtomContainerSet goodlistquery;
     final private IAtomContainerSet badlistquery; 
@@ -106,7 +106,8 @@ public class MolProcessor implements Runnable{
 		this.cdkCheck = cdk;
 		this.checkBad = checkBad;
 		this.canString = canStr;
-		this.blocks = blocks.clone();
+		if (blocks == null) this.blocks = null;
+		else this.blocks = blocks.clone();
 		this.atoms = atoms;
 		this.goodlistquery = good;
 		this.badlistquery = bad;
@@ -180,33 +181,43 @@ public class MolProcessor implements Runnable{
 				blocks[i] = 1;	// continuing the block
 		}
 		
-		IAtomContainer lcontainer;
-		do {	// this stupid loop is here only because CDK is not stable with respect to the order of the atoms it returns
-			lcontainer = MolecularFormulaManipulator.getAtomContainer(
-				MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
-		}while(!inRightOrder(atomSymbols, lcontainer));	// make sure the order is as we want
-		acontainer = lcontainer;
-		
-		
-        if(goodlist != null){
-            InputStream ins = new BufferedInputStream(new FileInputStream(goodlist));
-            MDLV2000Reader reader = new MDLV2000Reader(ins);
-            ChemFile fileContents = (ChemFile)reader.read(new ChemFile());               
-            IChemSequence sequence = fileContents.getChemSequence(0);
-//            fragquery = sequence.getChemModel(0).getMoleculeSet().getAtomContainer(0);
-            goodlistquery = sequence.getChemModel(0).getMoleculeSet();
-        }  else 
-        	this.goodlistquery = null;
-        if(badlist != null){
-            InputStream ins = new BufferedInputStream(new FileInputStream(badlist));
-            MDLV2000Reader reader = new MDLV2000Reader(ins);
-            ChemFile fileContents = (ChemFile)reader.read(new ChemFile());               
-            IChemSequence sequence = fileContents.getChemSequence(0);
-//            fragquery = sequence.getChemModel(0).getMoleculeSet().getAtomContainer(0);
-            badlistquery = sequence.getChemModel(0).getMoleculeSet();
-        } else 
-        	this.badlistquery = null;
+		if (cdkCheck) {
+			IAtomContainer lcontainer;
+			do {	// this stupid loop is here only because CDK is not stable with respect to the order of the atoms it returns
+				lcontainer = MolecularFormulaManipulator.getAtomContainer(
+					MolecularFormulaManipulator.getMolecularFormula(formula, DefaultChemObjectBuilder.getInstance()));
+			}while(!inRightOrder(atomSymbols, lcontainer));	// make sure the order is as we want
+			acontainer = lcontainer;
+				
+	        if(goodlist != null){
+	            InputStream ins = new BufferedInputStream(new FileInputStream(goodlist));
+	            MDLV2000Reader reader = new MDLV2000Reader(ins);
+	            ChemFile fileContents = (ChemFile)reader.read(new ChemFile());               
+	            IChemSequence sequence = fileContents.getChemSequence(0);
 
+	            goodlistquery = sequence.getChemModel(0).getMoleculeSet();
+	            for (int i=1; i<sequence.getChemModelCount(); i++) {
+	                goodlistquery.add(sequence.getChemModel(i).getMoleculeSet());   
+	            }
+	        }  else 
+	        	this.goodlistquery = null;
+	        if(badlist != null){
+	        	 InputStream ins = new BufferedInputStream(new FileInputStream(badlist));
+	             MDLV2000Reader reader = new MDLV2000Reader(ins);
+	             ChemFile fileContents = (ChemFile)reader.read(new ChemFile());   
+
+	             IChemSequence sequence = fileContents.getChemSequence(0);
+	             badlistquery = sequence.getChemModel(0).getMoleculeSet();
+	             for (int i=1; i<sequence.getChemModelCount(); i++) {
+	                 badlistquery.add(sequence.getChemModel(i).getMoleculeSet());   
+	             }
+	        } else 
+	        	this.badlistquery = null;
+		} else {
+			acontainer = null;
+			goodlistquery = null;
+			badlistquery = null;
+		}
 	}
 
 	private boolean inRightOrder(ArrayList<String> atomSymbols, IAtomContainer lcontainer) {
@@ -284,7 +295,6 @@ public class MolProcessor implements Runnable{
 	
 	private boolean[] seen ;
 	private boolean isConnectedDFS(){
-//		return isConnected();
 		seen = new boolean[atoms.length];
 		dfs(0);
 		boolean connected = true;
@@ -299,48 +309,54 @@ public class MolProcessor implements Runnable{
 		}
 	}
 	
-
-	private boolean incBondSemiCanBig(final int left, final int right){
-		if (right<atoms.length-1 && atoms[left].flag == atoms[right].flag && 
-			atoms[right].symbol.equals(atoms[right+1].symbol) && 
-			adjacency[left][right]==adjacency[left][right+1]) {
-			int row;
-			for (row=left; row>0; row--)  {
-				if (adjacency[row-1][right]!=adjacency[row-1][right+1]) break;
-			}
-			if (row == 0)
-				return false;
-		}
-		return incBond(left, right);
-	}
-	
-	private boolean incBondSemiCan(final int left, final int right){
-		if (right>left+1 && !atoms[right].flag && 
-			atoms[right].symbol.equals(atoms[right-1].symbol) && 
-			adjacency[left][right]==adjacency[left][right-1]) {
-			int row;
-			for (row=left; row>0; row--)  {
-				if (adjacency[row-1][right]!=adjacency[row-1][right-1]) break;
-			}
-			if (row == 0)
-				return false;
-		}
-		return incBond(left, right);
-	}
-	
-	private boolean incBondWithBlocks(final int left, final int right){
-		return ((blocks[right]==0 || adjacency[left][right]<adjacency[left][right-1]) && incBond(left, right)) ;
-	}
+//
+//	private boolean incBondSemiCanBig(final int left, final int right){
+//		if (right<atoms.length-1 && atoms[left].flag == atoms[right].flag && 
+//			atoms[right].symbol.equals(atoms[right+1].symbol) && 
+//			adjacency[left][right]==adjacency[left][right+1]) {
+//			int row;
+//			for (row=left; row>0; row--)  {
+//				if (adjacency[row-1][right]!=adjacency[row-1][right+1]) break;
+//			}
+//			if (row == 0)
+//				return false;
+//		}
+//		return incBond(left, right);
+//	}
+//	
+//	private boolean incBondSemiCan(final int left, final int right){
+//		if (right>left+1 && !atoms[right].flag && 
+//			atoms[right].symbol.equals(atoms[right-1].symbol) && 
+//			adjacency[left][right]==adjacency[left][right-1]) {
+//			int row;
+//			for (row=left; row>0; row--)  {
+//				if (adjacency[row-1][right]!=adjacency[row-1][right-1]) break;
+//			}
+//			if (row == 0)
+//				return false;
+//		}
+//		return incBond(left, right);
+//	}
+//	
 	
 	private boolean incBond(final int left, final int right) {
+		if ((method & SEM_CAN) != 0 && !(blocks[right]==0 || adjacency[left][right]<adjacency[left][right-1])) return false;
 		if (adjacency[left][right] > 2) return false;	// no more than Triple bonds
 		if (isFull(left))  return false;
 		if (isFull(right)) return false;
 		if (checkBad && beforeLoop(left, right)) return false;
-		if (adjacency[left][right] == 0 && connectIfNotBad(left, right)) return false;
+		if (method != CAN_AUG && adjacency[left][right] == 0 && connectIfNotBad(left, right)) return false;
 		
 		adjacency[left][right]++;
 		adjacency[right][left]++;
+		return true;
+	}
+
+	private boolean decBond(final int left, final int right) {
+		if (adjacency[left][right] <= 0) return false;	
+		adjacency[left][right]--;
+		adjacency[right][left]--;
+		if (method != CAN_AUG && adjacency[left][right]==0) disconnect(left, right);
 		return true;
 	}
 
@@ -354,15 +370,18 @@ public class MolProcessor implements Runnable{
 	private boolean connectIfNotBad(int left, int right) {
 		boolean loop = connectivity[left][right] != -1;
 		if (loop && checkBad && afterLoop(left, right)) return true;
+		++ccc;
 //		System.out.print(" +"+left+right+"("+(++ccc)+")");
-//		if (ccc == 1747)
-//			ccc=ccc+1-1;
+		if (ccc == 232385)
+			ccc=ccc+1-1;
 		connectivity[right][left] = left;	// update even if there's a loop to make a direction on loop traversal
 		if (loop) {
 //			System.out.println(" + loop: "+(++loopCount));
 			// mark the loop, so we know also later
 			int prev_i = right;
 			for (int i=left; i!=right; prev_i = i, i = connectivity[i][right]){
+				if (i == -1)
+					i = -1;
 				loopPart[prev_i][i]++;
 				loopPart[i][prev_i]++;
 			}
@@ -438,7 +457,8 @@ public class MolProcessor implements Runnable{
 	}
 
 	private void disconnect(int left, int right) {
-//		System.out.print(" -"+left+right);
+		++c37;
+		//		System.out.print(" -"+left+right);
 		if (connectivity[left][right] != right) {	// at this point a loop was closed
 //			System.out.println(" - loop: "+(--loopCount));
 //			if (loopCount<0)
@@ -533,31 +553,6 @@ public class MolProcessor implements Runnable{
 			}
 		}
 		return false;
-	}
-//
-//	private boolean loop(int left, int right) {
-////		seen = new boolean[atoms.length];
-////		seen[left] = true;
-//		return (canReach(right, left, 0));
-//	}
-//
-//	private boolean canReach(int start, int target, int depth) {
-////		return loopPart[start][target]>0;
-//		if (start == target && depth>1) return true;
-//		if (seen[start] || depth == MAX_LOOP_SIZE) return false;
-//		seen[start] = true;
-//		for (int i=0; i<atoms.length; i++)
-//			if (adjacency[start][i]>0 && canReach(i, target, depth+1))
-//				return true;
-//		return false;
-//	}
-
-	private boolean decBond(final int left, final int right) {
-		if (adjacency[left][right] <= 0) return false;	// no more than Triple bonds
-		adjacency[left][right]--;
-		adjacency[right][left]--;
-		if (adjacency[left][right]==0) disconnect(left, right);
-		return true;
 	}
 
 	/**
@@ -674,7 +669,7 @@ public class MolProcessor implements Runnable{
 		case SEM_CAN:
 		case MIN_CAN:
 		case OPTIMAL:
-			generateOrderly();
+			generateOrderly(null, null);
 			break;
 		case CAN_AUG:
 			augment();
@@ -708,25 +703,31 @@ public class MolProcessor implements Runnable{
 	/*
 	 * This function should be called first with left=0 and right=1 as parameters.
 	 */
-	void generateOrderly () {
+	void generateOrderly (Set<String> visited, String pString) {
+    	if (visited == null && (method & CAN_AUG)!=0) {
+    		visited = new HashSet<>();
+    		pString = canString;
+    	}
 		if (startRight == atoms.length || isFull(startLeft)) {
 			if (startLeft == atoms.length-2) return;
 			int right = startRight;
-			int [] oldBlocks = new int [blocks.length];
-			System.arraycopy(blocks, 0, oldBlocks, 0, blocks.length);
-			updateBlocks(startLeft);
+			int [] oldBlocks = null;
+			if ((method & SEM_CAN) != 0) {
+				oldBlocks = new int [blocks.length];
+				System.arraycopy(blocks, 0, oldBlocks, 0, blocks.length);
+				updateBlocks(startLeft);
+			}
 			startLeft+=1;
 			startRight=startLeft+1;
-			generateOrderly();
-			blocks = oldBlocks;
+			generateOrderly(visited, pString);
+			blocks = oldBlocks;	// is relevant only if SEM_CAN, does not hurt otherwise!
 			startLeft-=1;
 			startRight=right;
 			return;
 		}
-		else if ((method==MIN_CAN && incBond(startLeft, startRight)) ||
-				 (method!=MIN_CAN && incBondWithBlocks(startLeft, startRight))) {	// not MIN --> SEM or OPTIMAL
+		else if (incBond(startLeft, startRight)) {
 			maxOpenings-=2;
-			if (method==SEM_CAN || new SortCompare(startLeft).isMinimal()) {
+			if (acceptableStructure(visited, pString)) {
 				checkMolecule();
 				if (maxOpenings>0) submitNewTask();	// if there are still open places for new bonds
 			}
@@ -734,8 +735,19 @@ public class MolProcessor implements Runnable{
 			maxOpenings+=2;
 		}
 		startRight++;
-		generateOrderly();
+		generateOrderly(visited, pString);
 		startRight--;
+	}
+
+	private boolean acceptableStructure(Set<String> visited, String pString) {
+		if ((method&MIN_CAN) != 0) return new SortCompare(startLeft).isMinimal();
+		if ((method&CAN_AUG) != 0) {
+			// canonize 
+			int[] perm1 = graph.canonize(this);
+			canString = molString(perm1);
+			return (visited.add(canString) && (pString.equals("") || pString.equals(degrade(perm1)))); 
+		}
+		return true;
 	}
 
 	
@@ -834,7 +846,7 @@ public class MolProcessor implements Runnable{
 		String pString = canString;
 		if (maxOpenings<=0) return;
     	Set<String> visited = new HashSet<>();
-		for (int left = 0; left < atoms.length; left++){
+		for (int left = 0; left < atoms.length-1; left++){
 			for (int right = left+1; right < atoms.length; right++){
 					if (!incBond(left, right)) continue;	
 					// canonize 
@@ -850,7 +862,7 @@ public class MolProcessor implements Runnable{
 							submitNewTask();
 							maxOpenings += 2;
 						}
-					}	
+					}
 					decBond(left,right);
 			}
 		}
@@ -916,19 +928,4 @@ public class MolProcessor implements Runnable{
 			System.err.println("The fragments file "+fileName+" could not be found.");
 		}
 	}
-	
-//	public void addFragment(String fileName) {
-//		System.out.println("Adding fragments in "+fileName);
-//		try {
-//			Scanner inFile = new Scanner(new FileInputStream(new File(fileName)));
-//			while (true){
-//				int [][] fragment = new int [atoms.length][atoms.length];
-//				if (!Util.readFragment(inFile, fragment, atoms)) break;
-//				outputMatrix(System.out, fragment);
-//			}
-//		} catch (FileNotFoundException e) {
-//			System.err.println("The fragments file "+fileName+" could not be found.");
-//		}
-//	}
-
 }
