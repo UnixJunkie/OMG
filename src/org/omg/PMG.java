@@ -62,10 +62,8 @@ public class PMG{
 		mp = new MolProcessor(atomSymbols, formula, method, (method==MolProcessor.SEM_CAN) && hashMap, cdk, checkBad, fragFile != null, goodlist, badlist);
 		if (fragFile != null) mp.useFragment(fragFile);
 		executor = new ThreadPoolExecutor(executorCount, executorCount, 0L, TimeUnit.MILLISECONDS, taskQueue);
-		startedTasks.getAndIncrement();
 		pendingTasks.getAndIncrement();
-//		executor.execute(mp);	// start the generation
-		mp.run();
+		executor.execute(mp);	// start the generation
 		wait2Finish();			// wait for all tasks to finish (pendingTasks == 0), and close the output file 
 		executor.shutdown();	// stop the executor --> kill the threads
 		long after = System.currentTimeMillis();		
@@ -200,19 +198,19 @@ public class PMG{
 			System.out.println("Started Tasks: "+startedTasks.get());
 		}
 		System.out.println("Unique molecule count:  " + molCounter.get());
-		System.out.println("Duration: " + (duration/1000) + " seconds");
+		System.out.println("Duration: " + (duration) + " milliseconds");
 	}
 
 	private static void wait2Finish() {
-		int timer = 60;
+		int timer = 300;
 		while (0 < pendingTasks.get()){
 			try {
-				Thread.sleep(1000);
+				Thread.sleep(100);
 				if (timer > 0)
 					timer--;
 				else {
 					System.out.println("Molecules generated so far: "+molCounter.get());
-					timer = 60;
+					timer = 300;
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
