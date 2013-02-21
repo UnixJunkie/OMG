@@ -345,7 +345,7 @@ public class MolProcessor implements Runnable{
 		if (isFull(left))  return false;
 		if (isFull(right)) return false;
 		if (checkBad && beforeLoop(left, right)) return false;
-		if (method != CAN_AUG && adjacency[left][right] == 0 && connectIfNotBad(left, right)) return false;
+		if (adjacency[left][right] == 0 && connectIfNotBad(left, right)) return false;
 		
 		adjacency[left][right]++;
 		adjacency[right][left]++;
@@ -356,7 +356,7 @@ public class MolProcessor implements Runnable{
 		if (adjacency[left][right] <= 0) return false;	
 		adjacency[left][right]--;
 		adjacency[right][left]--;
-		if (method != CAN_AUG && adjacency[left][right]==0) disconnect(left, right);
+		if (adjacency[left][right]==0) disconnect(left, right);
 		return true;
 	}
 
@@ -369,26 +369,44 @@ public class MolProcessor implements Runnable{
 	 */
 	private boolean connectIfNotBad(int left, int right) {
 		boolean loop = connectivity[left][right] != -1;
-		if (loop && checkBad && afterLoop(left, right)) return true;
+		adjacency[left][right]++;
+		adjacency[right][left]++;
+
+		if (loop && checkBad && afterLoop(left, right)) {
+			adjacency[left][right]--;
+			adjacency[right][left]--;
+			return true;
+		}
+		adjacency[left][right]--;
+		adjacency[right][left]--;
+
 		++ccc;
 //		System.out.print(" +"+left+right+"("+(++ccc)+")");
-		if (ccc == 232385)
-			ccc=ccc+1-1;
-		connectivity[right][left] = left;	// update even if there's a loop to make a direction on loop traversal
+//		if (ccc == 1000) {
+//			ccc = 0;
+//			test();
+//		}
+//			ccc=ccc+1-1;
 		if (loop) {
 //			System.out.println(" + loop: "+(++loopCount));
+			// if the nodes are already connected, which means we will now make a loop, we don't mark it here, because 
+			// it makes it easier to open the loop: then we don't need to do anything! We can however detect that here
+			// a loop was made because the two nodes are not directly connected! Note that we remove edges as a result 
+			// of backtracking, and therefore the edges are removed in the reverse order of their addition!
 			// mark the loop, so we know also later
 			int prev_i = right;
 			for (int i=left; i!=right; prev_i = i, i = connectivity[i][right]){
-				if (i == -1)
-					i = -1;
+//				if (i == -1)
+//					i = -1;
 				loopPart[prev_i][i]++;
 				loopPart[i][prev_i]++;
 			}
 			loopPart[prev_i][right]++;	// also count the last edge to right
 			loopPart[right][prev_i]++;	// also count the last edge to right
 		} else {
-			connectivity[left][right] = right;	// do not update if there's a loop, to keep the direction of line above
+			// add a direct connection between the two nodes
+			connectivity[right][left] = left;	
+			connectivity[left][right] = right;	
 			// discover other connectivities (there would be none in case of closing a loop)
 			for (int i=0; i<atoms.length; i++){
 				if (i!=right && connectivity[left][i] != -1){
@@ -416,34 +434,37 @@ public class MolProcessor implements Runnable{
 		return false;
 	}
 
-	private boolean afterLoop(int left, int right) {
-		boolean prevDouble = false;
-		int prev_i=right;
-		int i=connectivity[right][left]; 
-		while (i != -1) {
-			if (adjacency[prev_i][i] == 3) return true;
-			if (adjacency[prev_i][i] == 2){
-				if (prevDouble) return true;
-				prevDouble = true;
-			} else {
-				prevDouble = false;
+	private void test() {
+		for (int i=0; i<atoms.length; i++)
+			for (int j=0; j<atoms.length; j++) {
+				int j2 = connectivity[i][j];
+				if (j2 != -1 && adjacency[i][j2] == -1)
+					i = -2;
 			}
-			prev_i=i; 
-			i=connectivity[i][left];
-		}
-		// Detect a triangle with a double bond
-		for (int j=0; j<atoms.length; j++){
-			int triangle = adjacency[left][j] * adjacency[right][j];
-			if (triangle>=2) return true;
-			if (triangle>=1){
-				for (int jj=0; jj<atoms.length; jj++){
-					if (jj == left || jj == right || jj == j) continue;
-					if (adjacency[left][jj] * adjacency[right][jj]>0) return true;
-					if (adjacency[j][jj] * adjacency[right][jj]>0) return true;
-					if (adjacency[left][jj] * adjacency[j][jj]>0) return true;
+	}
+
+	private boolean afterLoop(int left, int right) {
+		int prev_i=left;
+		int i=right; 
+		int singleInLoop = 0, doubleInLoop = 0;
+		do {	
+			int next_i = connectivity[i][left];
+			if (next_i == -1) next_i = right; 	// close the loop (logically only)
+			singleInLoop = doubleInLoop = 0;
+			if (adjacency[prev_i][i] == 3) return true;		// triple in loop is always bad
+			for (int x=0; x<atoms.length; x++) {
+				if (x == i) continue;
+				if (loopPart[x][i] > 0 || x == prev_i || x == next_i) {	// we haven't marked the current loop, so do consider them
+					if (adjacency[x][i] == 1) singleInLoop++;
+					else if (adjacency[x][i] == 2) doubleInLoop++;
 				}
 			}
-		}
+			// detect: - two doubles, - one double and three singles, in any loop and connected to i
+			if (doubleInLoop>1 || doubleInLoop>0 && singleInLoop>2) return true;
+			prev_i=i; 
+			i=next_i;
+		} while (i != right); // "right"  is reached only by i=next_i above after loop is complete
+
 		// Detect a square with two double bonds
 		for (i=0; i<atoms.length; i++){
 			if (i == right || i == left) continue;
@@ -457,9 +478,9 @@ public class MolProcessor implements Runnable{
 	}
 
 	private void disconnect(int left, int right) {
-		++c37;
+//		++c37;
 		//		System.out.print(" -"+left+right);
-		if (connectivity[left][right] != right) {	// at this point a loop was closed
+		if (connectivity[left][right] != right) {	// at this point a loop was closed; see connect...() method
 //			System.out.println(" - loop: "+(--loopCount));
 //			if (loopCount<0)
 //				loopCount--;
@@ -470,7 +491,7 @@ public class MolProcessor implements Runnable{
 			}
 			loopPart[prev_i][right]--;	// also count the last edge to right
 			loopPart[right][prev_i]--;	// also count the last edge to right
-			connectivity[right][left] = prev_i;
+//			connectivity[right][left] = prev_i;
 		} else {
 			connectivity[left][right] = connectivity[right][left] = -1;
 			for (int i=0; i<atoms.length; i++) {
@@ -508,41 +529,49 @@ public class MolProcessor implements Runnable{
 	}
 
 	private boolean triangleWithDouble(int left, int right) {
-		if (adjacency[left][right]==1){
-			for (int i=0; i<atoms.length; i++) {
-				if (adjacency[i][left]!= 0 && adjacency[i][right] != 0)
-					return true;
+		for (int j=0; j<atoms.length; j++){
+			int triangle = adjacency[left][j] * adjacency[right][j];
+			if (triangle>=1){				
+				if (adjacency[left][right]>=1 || triangle>= 2) return true;	// triangle with double
+				for (int jj=0; jj<atoms.length; jj++){		// detect two connected triangles 
+					if (jj == left || jj == right || jj == j) continue;
+					if (adjacency[left][jj] * adjacency[right][jj]>0) return true;
+					if (adjacency[j][jj] * adjacency[right][jj]>0) return true;
+					if (adjacency[left][jj] * adjacency[j][jj]>0) return true;
+				}
 			}
 		}
 		return false;
 	}
 
 	private boolean twoDoubleInLoop(int left, int right) {
-		if (adjacency[left][right]==1){
-			if (loopPart[left][right]==0) return false;
+		int singleInLoopLeft = 0, singleInLoopRight = 0;
+		if (adjacency[left][right]==1){		// it will become a double bond
+			if (loopPart[left][right]==0) return false;	
 			for (int i=0; i<atoms.length; i++) {
-				if (adjacency[i][left] == 2) {				
-					if (loopPart[left][i]>0){
-						return true;	
-					}
+				if (i == left || i == right) continue;
+				if (loopPart[left][i]>0){
+					if (adjacency[i][left]  > 1) return true;	// if two consecutive doubles in a loop or different loops
+					singleInLoopLeft++;
 				}
-				if (adjacency[i][right] == 2) {
-					if (loopPart[right][i]>0) return true;
+				if (loopPart[right][i]>0) {
+					if (adjacency[i][right] > 1) return true;	// if two consecutive doubles in a loop or different loops
+					singleInLoopRight++;
 				}
 			}
 		}
-		return false;
+		return (singleInLoopLeft > 2 || singleInLoopRight > 2);	// a node with a double and at least three singles in loops
 	}
 
 	private boolean tripleInLoop(int left, int right) {
-		if (adjacency[left][right]==2){	// it will become a triple bond
+		if (adjacency[left][right]==2){		// it will become a triple bond
 			return loopPart[left][right]>0;
 		}
 		return false;
 	}
 	
 	private boolean squareWithTwoDouble(int left, int right){
-		if (adjacency[left][right]==1){
+		if (adjacency[left][right]==1){		// it will become a double bond
 			for (int i=0; i<atoms.length; i++){
 				if (i == right || i == left) continue;
 				for (int j=0; j<atoms.length; j++){
@@ -855,7 +884,7 @@ public class MolProcessor implements Runnable{
 					if (visited.add(childString)) {	
 						if (pString.equals("") || pString.equals(degrade(perm1))){ 
 							maxOpenings -= 2;
-							if (isComplete() && isConnectedDFS()) {
+							if (isComplete() && isConnected()) {
 								finalProcess(childString);
 							}	
 							canString = childString;
@@ -904,19 +933,19 @@ public class MolProcessor implements Runnable{
 		System.out.println("Using the first molecule in "+fileName+" as the starting fragment.");
 		try {
 			Scanner inFile = new Scanner(new FileInputStream(new File(fileName)));
-			int [] map = Util.readFragment(inFile, adjacency, atoms);
+			int [] map = Util.readFragment(inFile, fragment, atoms);
 			if (map == null) {
 				System.out.println("Could not initialize the fragment.");
 				return;
 			}
 			frag = true;
 			for (int i=0; i<atoms.length; i++)
-				for (int j=0; j<atoms.length; j++){
-					fragment[i][j] = adjacency[i][j];
+				for (int j=i+1; j<atoms.length; j++){
 					if (fragment[i][j]>0) {
 						connectIfNotBad(i,j);
-						maxOpenings -= fragment[i][j];
+						maxOpenings -= 2*fragment[i][j];
 					}
+					adjacency[j][i] = adjacency[i][j] = fragment[i][j];
 				}
 //			outputMatrix(System.out, adjacency);
 			for (int i=0; i<map.length; i++) {

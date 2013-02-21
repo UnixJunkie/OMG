@@ -174,10 +174,10 @@ public class PMG{
 		System.out.print("Processing "+formula+" using");
 		switch(method){
 		case MolProcessor.CAN_AUG: System.out.println(" canonical augmentation with bliss as canonizer");
-		if (checkBad) {
-			checkBad = false;
-			System.out.println("Warning: Bad-sub filter cannot be used with canonical augmentation - filter disabled.");
-		}
+//		if (checkBad) {
+//			checkBad = false;
+//			System.out.println("Warning: Bad-sub filter cannot be used with canonical augmentation - filter disabled.");
+//		}
 		break;
 		case MolProcessor.MIN_CAN: System.out.println(" only minimization"); break;
 		case MolProcessor.SEM_CAN: System.out.println(" semi-canonization and "+(hashMap?"hash map":"minimization test on finished molecules")); break;
@@ -192,25 +192,25 @@ public class PMG{
 	}
 
 	private static void report(long duration) {
+		System.out.println("\rFinal molecule count:  " + molCounter.get());
 		if (verbose) {
 			if (method == MolProcessor.SEM_CAN || mp.frag) System.out.println("Duplicates removed in the end: "+MolProcessor.duplicate.get());
 			if (cdk) System.out.println("Rejecting "+rejectedByCDK.get()+" by CDK.");
 			System.out.println("Started Tasks: "+startedTasks.get());
 		}
-		System.out.println("Unique molecule count:  " + molCounter.get());
 		System.out.println("Duration: " + (duration) + " milliseconds");
 	}
 
 	private static void wait2Finish() {
-		int timer = 300;
+		int timer = 100;
 		while (0 < pendingTasks.get()){
 			try {
 				Thread.sleep(100);
 				if (timer > 0)
 					timer--;
 				else {
-					System.out.println("Molecules generated so far: "+molCounter.get());
-					timer = 300;
+					System.out.print("\rMolecules so far: "+molCounter.get());
+					timer = 100;
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
