@@ -3,18 +3,13 @@ package fi.tkk.ics.jbliss;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.net.URL;
-import java.util.*;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.RecursiveTask;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.omg.MolHelper;
 import org.omg.MolProcessor;
 import org.omg.tools.Atom;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
-import org.openscience.cdk.interfaces.IBond;
 
 /**
  * To convert a multi-graph to a simple graph, we create N vertexes for each edge of order N.
@@ -106,45 +101,6 @@ public class Graph {
 		return str;
 	}
 
-	
-	/**
-	 * Find the canonical labeling and the automorphism group of the graph.
-	 *
-	 * @return           A canonical labeling permutation
-	 */
-	public int[] canonize(final IAtomContainer atomContainer, final boolean report) {
-		// initialize the orbit calculation
-		atomCount = atomContainer.getAtomCount();
-		orbitRep = new int[atomCount ];
-		for (int i=0; i<atomCount; i++){
-			orbitRep[i] = i;	// start with no symmetry
-		}
-		// create a bliss instance for calculating the canonical labeling
-		long bliss = create();
-		assert bliss != 0;
-		
-		// Add each atom as a vertex with a color corresponding to the atom type
-		for (IAtom atom : atomContainer.atoms()){
-			_add_vertex(bliss, colorTable.get(atom.getSymbol()));
-		}
-		// Add each bond as a vertex connected to the adjacent atoms (turning a multi-graph to a simple one)
-		for (IBond bond : atomContainer.bonds()) {
-			int atom0 = atomContainer.getAtomNumber(bond.getAtom(0));
-			int atom1 = atomContainer.getAtomNumber(bond.getAtom(1));
-			int orderNumber = MolHelper.orderNumber(bond.getOrder());
-			int vid=0;
-			for (; 0<orderNumber; orderNumber--){
-				vid = _add_vertex(bliss, bondColor);
-				_add_edge(bliss, atom0, vid);
-				_add_edge(bliss, atom1, vid);
-			}
-			bond.setID(""+vid);
-		}
-		int[] cf = _canonical_labeling(bliss, report?1:null); 
-		destroy(bliss);
-
-		return cf;
-	}
 	
 	public int[] canonize(final MolProcessor mol) {
 		// create a bliss instance for calculating the canonical labeling
