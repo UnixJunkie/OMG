@@ -153,21 +153,23 @@ public class Graph {
 
 		String osName = System.getProperty("os.name");
 		String osArch = System.getProperty("os.arch");
-		String blissName;
-		if (osName.contains("Windows"))
-			blissName = "bliss.dll";
-		else
-			blissName = "bliss"+osName+osArch+".so";
-		
+		String blissName="";
+		String dirName = "";
 		try {
-			String dirName = new File(".").getCanonicalPath();
-			System.load(dirName+"/"+blissName);
+			dirName = new File(".").getCanonicalPath();
+			if (osName.contains("Windows")){
+				blissName = "bliss.dll";
+				System.load(dirName+"\\"+blissName);
+			} else {
+				blissName = "bliss"+osName+osArch+".so";
+				System.load(dirName+"/"+blissName);
+			}			
 		} catch (IOException e) {
 			System.err.println("Could not get the current directory.");
 			e.printStackTrace();
 			System.exit(11);
 		} catch (UnsatisfiedLinkError ule2){
-			System.err.println("Could not load the jbliss library for "+osName+" "+osArch);
+			System.err.println("Could not load the jbliss library for "+osName+" "+osArch+", while looking at "+dirName);
 			System.err.println("The file "+blissName+" should be available in the current directory.");
 			System.exit(10);
 		}
