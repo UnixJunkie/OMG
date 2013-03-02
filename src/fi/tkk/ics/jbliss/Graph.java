@@ -153,17 +153,16 @@ public class Graph {
 
 		String osName = System.getProperty("os.name");
 		String osArch = System.getProperty("os.arch");
-		String blissName="";
+		String blissName;
+		if (osName.contains("Windows"))
+			blissName = "bliss.dll";
+		else
+			blissName = "bliss"+osName+osArch+".so";
+		
 		String dirName = "";
 		try {
 			dirName = new File(".").getCanonicalPath();
-			if (osName.contains("Windows")){
-				blissName = "bliss.dll";
-				System.load(dirName+"\\"+blissName);
-			} else {
-				blissName = "bliss"+osName+osArch+".so";
-				System.load(dirName+"/"+blissName);
-			}			
+			System.load(dirName+"/"+blissName);
 		} catch (IOException e) {
 			System.err.println("Could not get the current directory.");
 			e.printStackTrace();
