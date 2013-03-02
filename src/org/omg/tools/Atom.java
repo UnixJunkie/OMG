@@ -24,7 +24,7 @@ public class Atom {
 
 	static {
 		// initialize the table
-		valenceTable = new HashMap<>();
+		valenceTable = new HashMap<String,  List<Integer>>();
 		// TODO: read atom symbols from CDK?
 		valenceTable.put("H", Arrays.asList(1));
 		valenceTable.put("C", Arrays.asList(4));

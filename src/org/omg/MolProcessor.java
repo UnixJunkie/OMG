@@ -724,7 +724,7 @@ public class MolProcessor implements Runnable{
 	 */
 	void generateOrderly (Set<String> visited, String pString) {
     	if (visited == null && (method & CAN_AUG)!=0) {
-    		visited = new HashSet<>();
+    		visited = new HashSet<String>();
     		pString = canString;
     	}
 		if (startRight == atoms.length || isFull(startLeft)) {
@@ -864,7 +864,7 @@ public class MolProcessor implements Runnable{
 	private void augment(){
 		String pString = canString;
 		if (maxOpenings<=0) return;
-    	Set<String> visited = new HashSet<>();
+    	Set<String> visited = new HashSet<String>();
 		for (int left = 0; left < atoms.length-1; left++){
 			for (int right = left+1; right < atoms.length; right++){
 					if (!incBond(left, right)) continue;	

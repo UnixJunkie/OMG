@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.omg.tools.Util;
 import org.openscience.cdk.exception.CDKException;
-import org.openscience.cdk.tools.SaturationChecker;
 
 public class PMG{
 	/**Output File containing the list of graph. */

@@ -153,7 +153,11 @@ public class Graph {
 
 		String osName = System.getProperty("os.name");
 		String osArch = System.getProperty("os.arch");
-		String blissName = "bliss"+osName+osArch+".so";
+		String blissName;
+		if (osName.contains("Windows"))
+			blissName = "bliss.dll";
+		else
+			blissName = "bliss"+osName+osArch+".so";
 		
 		try {
 			String dirName = new File(".").getCanonicalPath();
@@ -169,7 +173,7 @@ public class Graph {
 		}
 		
 		// initialize the colorTable
-		colorTable = new HashMap<>();
+		colorTable = new HashMap<String, Integer>();
 		// TODO: read atom symbols from CDK
 		colorTable.put("C", 1);
 		colorTable.put("N", 2);
