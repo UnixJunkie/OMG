@@ -5,7 +5,7 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/3"/>
 	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.USER_LIBRARY/jbliss">
 		<attributes>
-			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="openmg-code/src/fi/tkk/ics/jbliss"/>
+			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="openmg-code"/>
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/CDK_Julio.jar"/>

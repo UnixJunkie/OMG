@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.omg.tools.Util;
 import org.openscience.cdk.exception.CDKException;
 
+import fi.tkk.ics.jbliss.Graph;
+
 public class PMG{
 	/**Output File containing the list of graph. */
 	static BufferedWriter outFile;
@@ -106,6 +108,9 @@ public class PMG{
 					verbose = true;
 				}
 				else if(args[i].equals("-fr")){
+					if (!Graph.blissFound) {
+						continue;
+					}
 					if (fragFile == null) {
 						fragFile = args[++i];
 					} else {
@@ -144,7 +149,8 @@ public class PMG{
 		switch (m){
 		case 0:	return MolProcessor.SEM_CAN;
 		case 1:	return MolProcessor.MIN_CAN;
-		case 2:	return MolProcessor.CAN_AUG;
+		case 2:	if (Graph.blissFound) return MolProcessor.CAN_AUG; 
+				else {System.out.println("Canonical augmentation is not available without bliss."); System.exit(2);}
 		}
 		System.err.println("Invalid method is selected.");
 		usage();
@@ -152,7 +158,7 @@ public class PMG{
 	}
 
 	private static void usage() {
-		System.out.println("Usage: PMG <formula> [options]\n");
+		System.out.println("Usage: java -jar PMG.jar <formula> [options]\n");
 		System.out.println("Providing a formula for the elemental compositoin is obligatory, e.g., C4H7NO3.");
 		System.out.println("You can further specify the following options.");
 		System.out.println("\t-filter \tFilter bad substructures in the molecular structure.");
@@ -165,7 +171,7 @@ public class PMG{
 		System.out.println("\t-o  \tThe name of the output file");
 		System.out.println("\t-v  \tverbose mode");
 		System.out.println("\t-m \tThe method to use: \n\t\t\t0=semi-canonicity; \n\t\t\t1=minimization; \n\t\t\t2=canonical-augmentation;");
-		System.out.println("Note that if you don't specify a method (-m) then an optimal method will be used, which is a mix of semi-canonicity and minimization.");
+		System.out.println("Note that if you don't specify a method (-m) then the mix of semi-canonicity and minimization will be used.");
 	}
 
 	private static void startupMessages() {

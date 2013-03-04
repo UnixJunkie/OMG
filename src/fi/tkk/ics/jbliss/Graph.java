@@ -22,6 +22,11 @@ import org.openscience.cdk.interfaces.IAtomContainer;
 public class Graph {
 	public int[] orbitRep;
 	private int atomCount;
+	private static Map<String, Integer> colorTable;
+	private static final int bondColor = 1000;
+
+	public static boolean blissFound; 
+
 
 	public Graph() {
 		throw new UnsupportedOperationException("Use the Graph constructor that takes atomCount as parameter.");
@@ -57,9 +62,6 @@ public class Graph {
 //		for (int i:orbitRep) System.out.print(" "+orbitRep[i]);
 //		System.out.println();
 	}
-
-	private static Map<String, Integer> colorTable; 
-	private static final int bondColor = 1000;
 
 	
 	public String canonize(char[] atoms, char[] bonds) {
@@ -147,32 +149,7 @@ public class Graph {
 	}
 	
 
-	static {
-		/* Load the C++ library including the true bliss and
-		 * the JNI interface code */   
-
-		String osName = System.getProperty("os.name");
-		String osArch = System.getProperty("os.arch");
-		String blissName;
-		if (osName.contains("Windows"))
-			blissName = "bliss.dll";
-		else
-			blissName = "bliss"+osName+osArch+".so";
-		
-		String dirName = "";
-		try {
-			dirName = new File(".").getCanonicalPath();
-			System.load(dirName+"/"+blissName);
-		} catch (IOException e) {
-			System.err.println("Could not get the current directory.");
-			e.printStackTrace();
-			System.exit(11);
-		} catch (UnsatisfiedLinkError ule2){
-			System.err.println("Could not load the jbliss library for "+osName+" "+osArch+", while looking at "+dirName);
-			System.err.println("The file "+blissName+" should be available in the current directory.");
-			System.exit(10);
-		}
-		
+	static {	
 		// initialize the colorTable
 		colorTable = new HashMap<String, Integer>();
 		// TODO: read atom symbols from CDK
@@ -182,5 +159,46 @@ public class Graph {
 		colorTable.put("S", 4);
 		colorTable.put("P", 5);
 		colorTable.put("H", 6);
+		
+		/* Load the C++ library including the true bliss and
+		 * the JNI interface code */   
+
+		String osName = System.getProperty("os.name");
+		String osArch = System.getProperty("os.arch");
+		String blissName="";
+		
+		String dirName = "", fullPath="";
+		try {
+			dirName = new File(".").getCanonicalPath();
+			blissFound = true;
+			if (osName.contains("Windows")){
+				blissName = "bliss."+osArch+".dll";
+				fullPath = dirName + "\\" + blissName;
+				if (osArch.equals("amd64")) {
+					blissFound = false;
+				} else {
+					System.load(fullPath);
+				}
+			} else {
+				blissName = "bliss"+osName+osArch+".so";
+				fullPath = dirName+"/"+blissName;
+				System.load(fullPath);
+			}
+		} catch (IOException e) {
+			System.err.println("Could not get the current directory.");
+			e.printStackTrace();
+			System.exit(11);
+		} catch (UnsatisfiedLinkError ule2){
+			//ule2.printStackTrace();
+			//System.loadLibrary(blissName);
+			System.err.println("Problems loading the jbliss library for '"+osName+":"+osArch+"' at "+fullPath);
+			System.err.println("Make sure the file is correctly named and placed. If the file is not available, then unfortunately you cannot run the program on this platform.");
+			blissFound = false;
+		} finally {
+			if (!blissFound) { 
+				System.out.println("Prescribed fragments and canonical augmentation are disabled because bliss is not available on your platform.");
+				System.out.println("For these features to be available, you need Java 1.6.0_41, Java 1.7 or later (under windows use 'Java x86 32bits').");
+			}
+		}
 	}
 }
